@@ -4,8 +4,8 @@ import { AuthProvider } from '@/context/AuthContext'
 import './globals.css'
 
 export const metadata: Metadata = {
-  title: 'RestaurantOS',
-  description: 'Sistema de gestión de restaurante',
+  title: 'Sirve',
+  description: 'Sistema de gestión Sirve',
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

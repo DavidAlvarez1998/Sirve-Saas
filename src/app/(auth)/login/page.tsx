@@ -7,7 +7,7 @@ import { resolveTenantSlug } from '../../../lib/tenant'
 
 // ─── Dev-prefs helpers ────────────────────────────────────────────────────────
 
-const DEV_PREFS_KEY = 'restaurant_dev'
+const DEV_PREFS_KEY = 'sirve_dev'
 const DEV_PREFS_CAP = 5
 const DEFAULT_TENANT = '__master__'
 
@@ -140,9 +140,9 @@ export default function LoginPage() {
     return (
       <div className="min-h-screen flex items-center justify-center bg-white dark:bg-slate-900">
         <div className="bg-slate-100 dark:bg-slate-800 rounded-2xl shadow-md p-8 w-full max-w-sm text-center">
-          <h1 className="text-2xl font-bold text-slate-900 dark:text-white mb-3">RestaurantOS</h1>
+          <h1 className="text-2xl font-bold text-slate-900 dark:text-white mb-3">Sirve</h1>
           <p className="text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2">
-            No se pudo determinar el restaurante desde la URL. Accedé usando el subdominio de tu restaurante.
+            No se pudo determinar el local desde la URL. Accedé usando el subdominio de tu local.
           </p>
         </div>
       </div>
@@ -189,7 +189,7 @@ export default function LoginPage() {
     <div className="min-h-screen flex items-center justify-center bg-white dark:bg-slate-900">
       <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-md p-8 w-full max-w-sm">
         <h1 className="text-2xl font-bold text-slate-900 dark:text-white mb-6 text-center">
-          RestaurantOS
+          Sirve
         </h1>
 
         {showShortcuts && (

@@ -81,7 +81,7 @@ export default function SetupPage() {
     return (
       <div className="min-h-screen flex items-center justify-center bg-white dark:bg-slate-900">
         <div className="bg-slate-100 dark:bg-slate-800 rounded-2xl shadow-md p-8 w-full max-w-sm text-center">
-          <h1 className="text-2xl font-bold text-slate-900 dark:text-white mb-3">RestaurantOS</h1>
+          <h1 className="text-2xl font-bold text-slate-900 dark:text-white mb-3">Sirve</h1>
           <p className="text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2">{linkError}</p>
         </div>
       </div>
@@ -92,7 +92,7 @@ export default function SetupPage() {
     <div className="min-h-screen flex items-center justify-center bg-white dark:bg-slate-900">
       <div className="bg-slate-100 dark:bg-slate-800 rounded-2xl shadow-md p-8 w-full max-w-sm">
         <h1 className="text-2xl font-bold text-slate-900 dark:text-white mb-1 text-center">
-          RestaurantOS
+          Sirve
         </h1>
         {tenantNombre && (
           <p className="text-sm text-slate-500 dark:text-slate-400 text-center mb-6">

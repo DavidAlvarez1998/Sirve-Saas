@@ -1,9 +1,9 @@
 import type { AuthSession } from '@/types'
 
-const COOKIE_NAME = 'restaurant_session'
+const COOKIE_NAME = 'sirve_session'
 
 /**
- * Writes the auth session to the restaurant_session cookie.
+ * Writes the auth session to the sirve_session cookie.
  * Browser-only — guards with typeof window check.
  */
 export function setAuthCookie(session: AuthSession): void {
@@ -13,7 +13,7 @@ export function setAuthCookie(session: AuthSession): void {
 }
 
 /**
- * Clears the restaurant_session cookie.
+ * Clears the sirve_session cookie.
  * Browser-only — guards with typeof window check.
  */
 export function clearAuthCookie(): void {
@@ -22,7 +22,7 @@ export function clearAuthCookie(): void {
 }
 
 /**
- * Reads and parses the restaurant_session cookie.
+ * Reads and parses the sirve_session cookie.
  * Returns null if not present or invalid JSON.
  * Browser-only — guards with typeof window check.
  */

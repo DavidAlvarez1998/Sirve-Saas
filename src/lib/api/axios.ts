@@ -1,7 +1,7 @@
 import axios, { type AxiosError, type AxiosInstance } from 'axios'
 import type { AuthSession, ApiError } from '@/types'
 
-const STORAGE_KEY = 'restaurant_auth'
+const STORAGE_KEY = 'sirve_auth'
 
 const api: AxiosInstance = axios.create({
   baseURL: '/api',
@@ -33,7 +33,7 @@ api.interceptors.response.use(
     // 401: clear session and redirect to login
     if (status === 401 && typeof window !== 'undefined') {
       localStorage.removeItem(STORAGE_KEY)
-      document.cookie = 'restaurant_session=; SameSite=Lax; Path=/; Max-Age=0'
+      document.cookie = 'sirve_session=; SameSite=Lax; Path=/; Max-Age=0'
       if (!window.location.pathname.startsWith('/login')) {
         window.location.href = '/login'
       }
