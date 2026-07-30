@@ -11,17 +11,6 @@ function apiJson(status: number, message: string): NextResponse {
   return NextResponse.json({ message }, { status })
 }
 
-/**
- * Extract subdomain from Host header.
- * "pepe.localhost:3000" → "pepe"
- * "admin.example.com"  → "admin"
- * "localhost:3000"     → null
- */
-function extractSubdomain(host: string): string | null {
-  const match = /^([a-z0-9][a-z0-9-]*)\./.exec(host)
-  return match?.[1] ?? null
-}
-
 function propagate(
   req: NextRequest,
   ctx: { tenantSlug: string; user?: { sub: string; tenantId: unknown; roles: unknown } }
@@ -32,7 +21,7 @@ function propagate(
   return NextResponse.next({ request: { headers } })
 }
 
-// ─── Page-level logic (existing behaviour, preserved) ────────────────────────
+// ─── Page-level logic ────────────────────────────────────────────────────────
 
 type SessionCookie = {
   token: string
@@ -50,23 +39,8 @@ const ROLE_GATES: Array<{ prefix: string; roles: string[] }> = [
   { prefix: '/superadmin', roles: ['SUPERADMIN'] },
 ]
 
-function pageMiddleware(req: NextRequest): NextResponse {
+async function pageMiddleware(req: NextRequest): Promise<NextResponse> {
   const { pathname } = req.nextUrl
-  const hostname = req.headers.get('host') ?? ''
-  const subdomain = extractSubdomain(hostname)
-
-  if (!subdomain) {
-    // In dev, allow bare localhost to navigate freely (no tenant enforcement)
-    if (process.env.NODE_ENV === 'development') {
-      return NextResponse.next()
-    }
-    if (pathname !== '/login') {
-      const url = req.nextUrl.clone()
-      url.pathname = '/login'
-      return NextResponse.redirect(url)
-    }
-    return NextResponse.next()
-  }
 
   if (PUBLIC_PAGE_PATHS.some(p => pathname === p || pathname.startsWith(p + '/'))) {
     return NextResponse.next()
@@ -86,6 +60,16 @@ function pageMiddleware(req: NextRequest): NextResponse {
     const url = req.nextUrl.clone()
     url.pathname = '/login'
     url.searchParams.set('callbackUrl', pathname + req.nextUrl.search)
+    return NextResponse.redirect(url)
+  }
+
+  // Verify JWT signature — cookie JSON is client-controlled, signature is not
+  try {
+    await jwtVerify(session.token, getSecret())
+  } catch {
+    const url = req.nextUrl.clone()
+    url.pathname = '/login'
+    req.cookies.delete('sirve_session')
     return NextResponse.redirect(url)
   }
 
@@ -119,35 +103,14 @@ function isApiPublic(pathname: string): boolean {
 
 export async function middleware(req: NextRequest): Promise<NextResponse> {
   const { pathname } = req.nextUrl
-  const host = req.headers.get('host') ?? ''
 
-  // ── Non-API routes: delegate to existing page logic ──
+  // ── Non-API routes: delegate to page logic ──
   if (!pathname.startsWith('/api/')) {
     return pageMiddleware(req)
   }
 
-  // ── API: resolve tenant slug from subdomain ──
-  const subdomain = extractSubdomain(host)
-  let tenantSlug: string
-
-  if (subdomain === 'admin') {
-    // SUPERADMIN routes — sentinel value, cross-checked below
-    tenantSlug = '__master__'
-  } else if (subdomain) {
-    tenantSlug = subdomain
-  } else {
-    // No subdomain on API call
-    const isDev = process.env.NODE_ENV === 'development'
-    if (isDev) {
-      tenantSlug = '__local__'
-    } else {
-      return apiJson(400, 'Tenant subdomain required')
-    }
-  }
-
-  // ── Public API paths: skip JWT, forward with tenant context ──
+  // ── Public API paths: skip JWT, forward with master context ──
   if (isApiPublic(pathname)) {
-    // Login and setup always operate in master context
     return propagate(req, { tenantSlug: '__master__' })
   }
 
@@ -167,21 +130,8 @@ export async function middleware(req: NextRequest): Promise<NextResponse> {
     return apiJson(401, 'Invalid or expired token')
   }
 
-  const roles = (claims.roles as string[]) ?? []
-  const isSuperadmin = roles.includes('SUPERADMIN')
-
-  // ── Cross-tenant guard ──
-  if (tenantSlug === '__master__') {
-    // admin.* subdomain: only SUPERADMIN may access
-    if (!isSuperadmin) {
-      return apiJson(403, 'Forbidden')
-    }
-  } else if (tenantSlug !== '__local__') {
-    // Regular tenant: JWT must belong to this tenant (SUPERADMIN exempt)
-    if (!isSuperadmin && claims.tenantId !== tenantSlug) {
-      return apiJson(403, 'Forbidden')
-    }
-  }
+  // tenantSlug is authoritative from the signed JWT — no cross-check needed
+  const tenantSlug = (claims.tenantId as string | null) ?? '__master__'
 
   return propagate(req, {
     tenantSlug,

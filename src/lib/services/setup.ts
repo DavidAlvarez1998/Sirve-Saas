@@ -4,12 +4,12 @@ import { hashPassword } from '@/lib/auth'
 
 interface InvitacionInfo {
   tenantNombre: string
-  email: string
+  adminEmail: string
   expiresAt: Date
 }
 
 interface CompletarSetupInput {
-  username: string
+  email: string
   password: string
 }
 
@@ -50,7 +50,7 @@ export async function getInvitacion(sql: Sql, token: string): Promise<Invitacion
 
   return {
     tenantNombre: tenant.nombre,
-    email: inv.email,
+    adminEmail: inv.email,
     expiresAt: new Date(inv.expires_at),
   }
 }
@@ -58,7 +58,7 @@ export async function getInvitacion(sql: Sql, token: string): Promise<Invitacion
 export async function completarSetup(
   sql: Sql,
   token: string,
-  { username, password }: CompletarSetupInput,
+  { email, password }: CompletarSetupInput,
 ): Promise<void> {
   await sql.begin(async (tx: TransactionSql) => {
     const rows = await tx<InvitacionRow[]>`
@@ -77,7 +77,7 @@ export async function completarSetup(
     const existing = await tx`
       SELECT id
       FROM master.usuarios
-      WHERE username = ${username}
+      WHERE username = ${email}
         AND tenant_slug = ${inv.tenant_slug}
       LIMIT 1
     `
@@ -86,14 +86,17 @@ export async function completarSetup(
     const passwordHash = await hashPassword(password)
 
     const inserted = await tx<{ id: bigint }[]>`
-      INSERT INTO master.usuarios (username, password_hash, tenant_slug, activo)
-      VALUES (${username}, ${passwordHash}, ${inv.tenant_slug}, TRUE)
+      INSERT INTO master.usuarios (username, password_hash, email, tenant_slug, activo)
+      VALUES (${email}, ${passwordHash}, ${email}, ${inv.tenant_slug}, TRUE)
       RETURNING id
     `
 
     await tx`
       INSERT INTO master.usuario_roles (usuario_id, rol)
-      VALUES (${Number(inserted[0].id)}, 'ADMIN')
+      VALUES
+        (${Number(inserted[0].id)}, 'ADMIN'),
+        (${Number(inserted[0].id)}, 'MESERO'),
+        (${Number(inserted[0].id)}, 'COCINA')
     `
 
     await tx`

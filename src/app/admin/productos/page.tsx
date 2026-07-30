@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState, useCallback } from 'react'
+import Image from 'next/image'
 import { Plus, Pencil, Trash2, Package } from 'lucide-react'
 import { getProductos, createProducto, updateProducto, deleteProducto } from '@/lib/api/productos'
 import { uploadImagen } from '@/lib/api/imagenes'
@@ -172,8 +173,9 @@ export default function AdminProductos() {
               className="bg-slate-100 dark:bg-slate-800 rounded-3xl shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden"
             >
               {p.imagenUrl ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={p.imagenUrl} alt={p.nombre} className="w-full h-32 object-cover" />
+                <div className="relative w-full h-32">
+                  <Image src={p.imagenUrl} alt={p.nombre} fill className="object-cover" sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw" />
+                </div>
               ) : (
                 <div className="w-full h-32 bg-slate-200 dark:bg-slate-700 flex items-center justify-center">
                   <Package size={32} className="text-slate-400 dark:text-slate-500" />

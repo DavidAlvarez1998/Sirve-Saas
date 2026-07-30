@@ -52,7 +52,7 @@ const ESTADO_INFO: Record<EstadoOrden, { label: string; cls: string }> = {
 const isClosed = (o: Orden) =>
   o.estado === 'CANCELADA' || o.estado === 'PAGADA' || (o.estado === 'ENTREGADA' && o.pagada)
 
-const tipoLabel = (t: TipoOrden | undefined, mesaNumero?: string | null): string => {
+const tipoLabel = (t: TipoOrden | undefined, mesaNumero?: number | string | null): string => {
   if (t === 'MESA') return `Mesa ${mesaNumero || ''}`
   if (t === 'PARA_LLEVAR') return 'Para llevar'
   if (t === 'DOMICILIO') return 'Domicilio'

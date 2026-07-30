@@ -51,7 +51,7 @@ function toUsuario(row: UsuarioRow, roles: string[]): Usuario {
 
 async function fetchRoles(sql: Sql, usuarioId: bigint): Promise<string[]> {
   const rows = await sql<{ rol: string }[]>`
-    SELECT rol FROM usuario_roles WHERE usuario_id = ${Number(usuarioId)}
+    SELECT rol FROM master.usuario_roles WHERE usuario_id = ${Number(usuarioId)}
   `
   return rows.map((r: { rol: string }) => r.rol)
 }
@@ -59,7 +59,7 @@ async function fetchRoles(sql: Sql, usuarioId: bigint): Promise<string[]> {
 export async function listUsuarios(sql: Sql, tenantSlug: string): Promise<Usuario[]> {
   const rows = await sql<UsuarioRow[]>`
     SELECT id, username, email, tenant_slug, activo, created_at
-    FROM usuarios
+    FROM master.usuarios
     WHERE tenant_slug = ${tenantSlug}
     ORDER BY created_at ASC
   `
@@ -93,7 +93,7 @@ export async function createUsuario(
   }
 
   const existing = await sql<{ id: bigint }[]>`
-    SELECT id FROM usuarios
+    SELECT id FROM master.usuarios
     WHERE username = ${data.username} AND tenant_slug = ${tenantSlug}
     LIMIT 1
   `
@@ -102,7 +102,7 @@ export async function createUsuario(
   const passwordHash = await hashPassword(data.password)
 
   const rows = await sql<UsuarioRow[]>`
-    INSERT INTO usuarios (username, password_hash, tenant_slug, activo)
+    INSERT INTO master.usuarios (username, password_hash, tenant_slug, activo)
     VALUES (${data.username}, ${passwordHash}, ${tenantSlug}, true)
     RETURNING id, username, email, tenant_slug, activo, created_at
   `
@@ -110,7 +110,7 @@ export async function createUsuario(
 
   for (const rol of data.roles) {
     await sql`
-      INSERT INTO usuario_roles (usuario_id, rol) VALUES (${Number(usuario.id)}, ${rol})
+      INSERT INTO master.usuario_roles (usuario_id, rol) VALUES (${Number(usuario.id)}, ${rol})
     `
   }
 
@@ -121,16 +121,21 @@ export async function updateUsuario(
   sql: Sql,
   id: number,
   tenantSlug: string,
-  data: UpdateUsuarioData
+  data: UpdateUsuarioData,
+  callerUsername: string
 ): Promise<Usuario> {
   const rows = await sql<UsuarioRow[]>`
     SELECT id, username, email, tenant_slug, activo, created_at
-    FROM usuarios
+    FROM master.usuarios
     WHERE id = ${id}
     LIMIT 1
   `
   if (rows.length === 0 || rows[0].tenant_slug !== tenantSlug) {
     throw new NotFoundError(`Usuario ${id} not found`)
+  }
+  if (rows[0].username === callerUsername) {
+    if (data.roles !== undefined) throw new ForbiddenError('No podés cambiar tus propios roles')
+    if (data.activo === false) throw new ForbiddenError('No podés desactivar tu propia cuenta')
   }
 
   const current = rows[0]
@@ -138,7 +143,7 @@ export async function updateUsuario(
 
   if (passwordHash) {
     await sql`
-      UPDATE usuarios
+      UPDATE master.usuarios
       SET
         username      = ${data.username ?? current.username},
         email         = ${data.email !== undefined ? data.email : current.email},
@@ -148,7 +153,7 @@ export async function updateUsuario(
     `
   } else {
     await sql`
-      UPDATE usuarios
+      UPDATE master.usuarios
       SET
         username = ${data.username ?? current.username},
         email    = ${data.email !== undefined ? data.email : current.email},
@@ -158,10 +163,10 @@ export async function updateUsuario(
   }
 
   if (data.roles) {
-    await sql`DELETE FROM usuario_roles WHERE usuario_id = ${id}`
+    await sql`DELETE FROM master.usuario_roles WHERE usuario_id = ${id}`
     for (const rol of data.roles) {
       await sql`
-        INSERT INTO usuario_roles (usuario_id, rol) VALUES (${id}, ${rol})
+        INSERT INTO master.usuario_roles (usuario_id, rol) VALUES (${id}, ${rol})
       `
     }
   }
@@ -169,19 +174,22 @@ export async function updateUsuario(
   const currentRoles = data.roles ?? await fetchRoles(sql, current.id)
   const updatedRows = await sql<UsuarioRow[]>`
     SELECT id, username, email, tenant_slug, activo, created_at
-    FROM usuarios WHERE id = ${id} LIMIT 1
+    FROM master.usuarios WHERE id = ${id} LIMIT 1
   `
   return toUsuario(updatedRows[0], currentRoles)
 }
 
-export async function deleteUsuario(sql: Sql, id: number, tenantSlug: string): Promise<void> {
-  const rows = await sql<{ id: bigint; tenant_slug: string | null }[]>`
-    SELECT id, tenant_slug FROM usuarios WHERE id = ${id} LIMIT 1
+export async function deleteUsuario(sql: Sql, id: number, tenantSlug: string, callerUsername: string): Promise<void> {
+  const rows = await sql<{ id: bigint; tenant_slug: string | null; username: string }[]>`
+    SELECT id, tenant_slug, username FROM master.usuarios WHERE id = ${id} LIMIT 1
   `
   if (rows.length === 0 || rows[0].tenant_slug !== tenantSlug) {
     throw new NotFoundError(`Usuario ${id} not found`)
   }
-  await sql`DELETE FROM usuarios WHERE id = ${id}`
+  if (rows[0].username === callerUsername) {
+    throw new ForbiddenError('No podés eliminarte a vos mismo')
+  }
+  await sql`DELETE FROM master.usuarios WHERE id = ${id}`
 }
 
 export async function updateUsuarioCrossTenant(

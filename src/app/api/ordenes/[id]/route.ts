@@ -1,4 +1,4 @@
-import type { NextRequest } from 'next/server'
+import { NextResponse, type NextRequest } from 'next/server'
 import { handle, apiSuccess, getContext } from '@/lib/http'
 import { ValidationError } from '@/lib/errors'
 import { withTenant } from '@/lib/db'
@@ -55,6 +55,6 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
     if (isNaN(ordenId)) throw new ValidationError('ID inválido')
 
     await withTenant(tenantSlug, (sql) => OrdenService.deleteOrden(sql, ordenId))
-    return apiSuccess(null, 204)
+    return new NextResponse(null, { status: 204 })
   })
 }

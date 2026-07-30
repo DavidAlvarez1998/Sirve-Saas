@@ -14,11 +14,11 @@ interface NavItem {
 }
 
 const nav: NavItem[] = [
-  { to: '/superadmin', icon: Building2, label: 'Tenants', exact: true },
+  { to: '/superadmin', icon: Building2, label: 'Restaurantes', exact: true },
   {
     to: '/superadmin/tenants/new',
     icon: PlusCircle,
-    label: 'Nuevo Tenant',
+    label: 'Nuevo Restaurante',
   },
 ]
 

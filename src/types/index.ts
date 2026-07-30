@@ -72,7 +72,7 @@ export interface Orden {
   tipoOrden: TipoOrden
   estado: EstadoOrden
   mesaId?: number | null
-  mesaNumero?: string | null
+  mesaNumero?: number | null
   items: OrdenItem[]
   pagos: Pago[]
   totalMonto: number

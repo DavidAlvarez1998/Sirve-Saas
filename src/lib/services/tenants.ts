@@ -42,7 +42,7 @@ function toTenant(row: TenantRow, setupUrl?: string): Tenant {
 export async function listTenants(sql: Sql): Promise<Tenant[]> {
   const rows = await sql<TenantRow[]>`
     SELECT id, slug, nombre, activo, db_schema, created_at
-    FROM tenants
+    FROM master.tenants
     ORDER BY created_at DESC
   `
   return rows.map(r => toTenant(r))
@@ -51,7 +51,7 @@ export async function listTenants(sql: Sql): Promise<Tenant[]> {
 export async function getTenant(sql: Sql, slug: string): Promise<Tenant> {
   const rows = await sql<TenantRow[]>`
     SELECT id, slug, nombre, activo, db_schema, created_at
-    FROM tenants
+    FROM master.tenants
     WHERE slug = ${slug}
     LIMIT 1
   `
@@ -61,12 +61,12 @@ export async function getTenant(sql: Sql, slug: string): Promise<Tenant> {
 
 export async function createTenant(sql: Sql, data: CreateTenantData): Promise<Tenant> {
   const existing = await sql<{ id: bigint }[]>`
-    SELECT id FROM tenants WHERE slug = ${data.slug} LIMIT 1
+    SELECT id FROM master.tenants WHERE slug = ${data.slug} LIMIT 1
   `
   if (existing.length > 0) throw new ConflictError(`Tenant '${data.slug}' already exists`)
 
   const rows = await sql<TenantRow[]>`
-    INSERT INTO tenants (slug, nombre, activo, db_schema)
+    INSERT INTO master.tenants (slug, nombre, activo, db_schema)
     VALUES (${data.slug}, ${data.nombre}, true, ${'tenant_' + data.slug})
     RETURNING id, slug, nombre, activo, db_schema, created_at
   `
@@ -75,7 +75,7 @@ export async function createTenant(sql: Sql, data: CreateTenantData): Promise<Te
   await sql.unsafe(`SELECT master.provision_tenant_schema($1)`, [data.slug])
 
   const tokenRows = await sql<{ token: string }[]>`
-    INSERT INTO invitaciones (tenant_slug, email, expires_at)
+    INSERT INTO master.invitaciones (tenant_slug, email, expires_at)
     VALUES (${data.slug}, ${data.adminEmail}, NOW() + INTERVAL '7 days')
     RETURNING token::text
   `
@@ -86,7 +86,7 @@ export async function createTenant(sql: Sql, data: CreateTenantData): Promise<Te
   try {
     await sendInvitationEmail({ to: data.adminEmail, tenantNombre: data.nombre, setupUrl })
   } catch (err) {
-    await sql`UPDATE tenants SET activo = false WHERE slug = ${data.slug}`
+    await sql`UPDATE master.tenants SET activo = false WHERE slug = ${data.slug}`
     throw err
   }
 
@@ -95,7 +95,7 @@ export async function createTenant(sql: Sql, data: CreateTenantData): Promise<Te
 
 export async function desactivarTenant(sql: Sql, id: number): Promise<Tenant> {
   const rows = await sql<TenantRow[]>`
-    UPDATE tenants SET activo = false
+    UPDATE master.tenants SET activo = false
     WHERE id = ${id}
     RETURNING id, slug, nombre, activo, db_schema, created_at
   `

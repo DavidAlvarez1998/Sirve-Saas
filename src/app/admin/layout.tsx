@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation'
 import { LayoutDashboard, Package, Salad, TableProperties, BarChart2, Users } from 'lucide-react'
 import LogoutButton from '@/components/auth/LogoutButton'
 import ThemeToggle from '@/components/auth/ThemeToggle'
+import RoleSwitcher from '@/components/admin/RoleSwitcher'
 
 const nav = [
   { to: '/admin', icon: LayoutDashboard, label: 'Inicio', exact: true },
@@ -52,6 +53,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             )
           })}
         </nav>
+        <RoleSwitcher variant="sidebar" />
         <div className="flex items-center px-4 mb-6 gap-1">
           <ThemeToggle />
           <LogoutButton />
@@ -78,6 +80,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             </Link>
           )
         })}
+        <RoleSwitcher variant="bottom-nav" />
       </nav>
     </div>
   )

@@ -18,17 +18,17 @@ export async function POST(
     const itemIdNum = parseInt(itemId, 10)
     if (isNaN(ordenId) || isNaN(itemIdNum)) throw new ValidationError('ID inválido')
 
-    const orden = await withTenant(tenantSlug, (sql) =>
+    const result = await withTenant(tenantSlug, (sql) =>
       OrdenService.separarItem(sql, ordenId, itemIdNum)
     )
 
     broadcastOrden(tenantSlug, {
       tipo: 'ACTUALIZADA',
-      ordenId: orden.id,
-      estado: orden.estado,
-      pagada: orden.pagada,
+      ordenId: result.orden.id,
+      estado: result.orden.estado,
+      pagada: result.orden.pagada,
     })
 
-    return apiSuccess(orden)
+    return apiSuccess(result)
   })
 }

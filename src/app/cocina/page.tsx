@@ -13,8 +13,11 @@ import { getCocinaOrdenes, getCocinaFinalizadas } from '@/lib/api/cocina'
 import { updateEstado } from '@/lib/api/ordenes'
 import { getProductos } from '@/lib/api/productos'
 import { useOrdenRealtime } from '@/hooks/useOrdenRealtime'
+import Link from 'next/link'
+import { LayoutDashboard } from 'lucide-react'
 import LogoutButton from '@/components/auth/LogoutButton'
 import ThemeToggle from '@/components/auth/ThemeToggle'
+import { useAuth } from '@/context/AuthContext'
 import Toast from '@/components/ui/Toast'
 import type { Orden, OrdenItem, TipoProducto } from '@/types'
 
@@ -41,7 +44,7 @@ interface GroupedItem extends OrdenItem {
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-const TIPO_LABEL: Record<string, (mesaNumero?: string | null) => string> = {
+const TIPO_LABEL: Record<string, (mesaNumero?: number | string | null) => string> = {
   MESA: (m) => `Mesa ${m}`,
   PARA_LLEVAR: () => 'Para llevar',
   DOMICILIO: () => 'Domicilio',
@@ -143,6 +146,7 @@ function agruparItems(items: OrdenItem[]): GroupedItem[] {
 // ─── Component ───────────────────────────────────────────────────────────────
 
 export default function CocinaPage() {
+  const { hasRole } = useAuth()
   const [pendientes, setPendientes] = useState<Orden[]>([])
   const [finalizadas, setFinalizadas] = useState<Orden[]>([])
   const [tab, setTab] = useState<Tab>('pendientes')
@@ -248,6 +252,15 @@ export default function CocinaPage() {
           </div>
         </div>
         <div className="flex items-center gap-2">
+          {hasRole('ADMIN') && (
+            <Link
+              href="/admin"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-300 dark:hover:bg-slate-600 transition"
+            >
+              <LayoutDashboard size={13} />
+              Volver al panel
+            </Link>
+          )}
           <ThemeToggle />
           <LogoutButton mobile />
         </div>

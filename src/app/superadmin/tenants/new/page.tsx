@@ -158,7 +158,7 @@ export default function CreateTenantPage() {
       })
       setSetupUrl(result.setupUrl ?? null)
       setToast({
-        msg: `Tenant "${form.slug}" creado exitosamente`,
+        msg: `Restaurante "${form.slug}" creado exitosamente`,
         type: 'success',
       })
       setForm({ slug: '', nombre: '', adminEmail: '' })
@@ -173,7 +173,7 @@ export default function CreateTenantPage() {
         setToast({ msg: 'El slug ya está en uso', type: 'error' })
       } else {
         setToast({
-          msg: apiErr.friendlyMessage ?? 'Error al crear el tenant',
+          msg: apiErr.friendlyMessage ?? 'Error al crear el restaurante',
           type: 'error',
         })
       }
@@ -188,7 +188,7 @@ export default function CreateTenantPage() {
         <PlusCircle size={28} className="text-indigo-400" />
         <div>
           <h1 className="text-2xl font-bold text-slate-900 dark:text-white">
-            Nuevo Tenant
+            Nuevo Restaurante
           </h1>
           <p className="text-slate-500 dark:text-slate-400 text-sm">
             Crear un restaurante en la plataforma
@@ -242,7 +242,7 @@ export default function CreateTenantPage() {
             disabled={saving}
             className="flex-1 py-3 rounded-2xl bg-indigo-500 hover:bg-indigo-600 text-white font-medium text-sm transition disabled:opacity-50"
           >
-            {saving ? 'Creando...' : 'Crear Tenant'}
+            {saving ? 'Creando...' : 'Crear Restaurante'}
           </button>
         </div>
       </form>
@@ -251,7 +251,7 @@ export default function CreateTenantPage() {
       {setupUrl && (
         <div className="mt-6 p-4 rounded-2xl bg-green-500/10 border border-green-500/30">
           <p className="text-green-400 text-sm font-medium mb-2">
-            Tenant creado exitosamente
+            Restaurante creado exitosamente
           </p>
           <p className="text-slate-400 text-xs mb-2">
             Enlace de configuración:
@@ -276,7 +276,7 @@ export default function CreateTenantPage() {
             onClick={() => router.push('/superadmin')}
             className="mt-3 text-xs text-slate-400 hover:text-slate-300 transition"
           >
-            Ver lista de tenants
+            Ver lista de restaurantes
           </button>
         </div>
       )}

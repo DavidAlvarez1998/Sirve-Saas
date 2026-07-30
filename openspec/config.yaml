@@ -1,0 +1,55 @@
+schema: spec-driven
+artifact_store: hybrid
+execution_mode: auto
+delivery_strategy: ask-on-risk
+
+context: |
+  Project: Sirve-Saas — multi-tenant SaaS for restaurant management
+  Stack: Next.js 15 App Router, TypeScript 5, postgres.js, jose (JWT HS256), bcryptjs, Zod, Supabase JS, Resend, Tailwind CSS v4
+  Architecture: schema-per-tenant PostgreSQL (master schema + tenant_{slug} per restaurant), Next.js middleware for tenant resolution + JWT guard
+  Auth: JWT HS256 8h expiry; cookie sirve_session for page routes; Bearer token for API routes
+  Realtime: Supabase Broadcast for order updates
+  Storage: Supabase Storage via service_role key
+
+testing:
+  strict_tdd: false
+  test_runner: null
+  test_command: null
+  layers:
+    unit: false
+    integration: false
+    e2e: false
+  coverage: false
+  quality:
+    linter: "next lint"
+    type_checker: "tsc --noEmit"
+    build: "next build"
+
+rules:
+  proposal:
+    - Include rollback plan for schema migrations
+    - Tag multi-tenant impact explicitly
+  specs:
+    - Use Given/When/Then for scenarios
+    - Use RFC 2119 keywords (MUST, SHALL, SHOULD, MAY)
+    - Document tenant isolation guarantees per endpoint
+  design:
+    - Include sequence diagrams for flows touching multiple services
+    - Document architecture decisions with rationale
+    - Note PgBouncer constraints for any DB connection changes
+  tasks:
+    - Group by phase, use hierarchical numbering
+    - Keep tasks completable in one session
+    - Flag tasks that require SQL migrations
+  apply:
+    - Follow existing service/route handler pattern in src/lib/services/ and src/app/api/
+    - Use withTenant() for all tenant-scoped queries, masterDb() for master schema
+    - Always prefix master schema tables with master. in queries
+    tdd: false
+    test_command: ""
+  verify:
+    test_command: ""
+    build_command: "next build"
+    coverage_threshold: 0
+  archive:
+    - Warn before merging destructive schema delta specs

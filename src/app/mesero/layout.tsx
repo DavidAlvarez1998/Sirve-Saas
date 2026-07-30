@@ -1,11 +1,13 @@
 'use client'
 
 import Link from 'next/link'
+import { useState, useEffect } from 'react'
 import { usePathname } from 'next/navigation'
-import { TableProperties, ClipboardList } from 'lucide-react'
+import { TableProperties, ClipboardList, LayoutDashboard } from 'lucide-react'
 import LogoutButton from '../../components/auth/LogoutButton'
 import ThemeToggle from '../../components/auth/ThemeToggle'
 import { MeseroProvider } from '../../context/MeseroContext'
+import { useAuth } from '../../context/AuthContext'
 
 interface NavItem {
   href: string
@@ -21,6 +23,9 @@ const nav: NavItem[] = [
 
 export default function MeseroLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
+  const { hasRole } = useAuth()
+  const [mounted, setMounted] = useState(false)
+  useEffect(() => setMounted(true), [])
 
   const isActive = (item: NavItem) =>
     item.exact ? pathname === item.href : pathname.startsWith(item.href)
@@ -55,6 +60,17 @@ export default function MeseroLayout({ children }: { children: React.ReactNode }
               )
             })}
           </nav>
+          {mounted && hasRole('ADMIN') && (
+            <div className="px-4 pb-4">
+              <Link
+                href="/admin"
+                className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700 hover:text-slate-900 dark:hover:text-white transition"
+              >
+                <LayoutDashboard size={16} />
+                Volver al panel
+              </Link>
+            </div>
+          )}
           <div className="flex items-center px-4 mb-6 gap-1">
             <ThemeToggle />
             <LogoutButton />

@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState, useCallback } from 'react'
+import Image from 'next/image'
 import { Plus, Pencil, Trash2, Salad } from 'lucide-react'
 import { getIngredientes, createIngrediente, updateIngrediente, deleteIngrediente } from '@/lib/api/ingredientes'
 import { uploadImagen } from '@/lib/api/imagenes'
@@ -153,12 +154,9 @@ export default function AdminIngredientes() {
               className="bg-slate-100 dark:bg-slate-800 rounded-3xl shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden"
             >
               {item.imagenUrl ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={item.imagenUrl}
-                  alt={item.nombre}
-                  className="w-full h-24 object-cover"
-                />
+                <div className="relative w-full h-24">
+                  <Image src={item.imagenUrl} alt={item.nombre} fill className="object-cover" sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw" />
+                </div>
               ) : (
                 <div className="w-full h-24 bg-slate-200 dark:bg-slate-700 flex items-center justify-center">
                   <Salad size={28} className="text-slate-400 dark:text-slate-500" />

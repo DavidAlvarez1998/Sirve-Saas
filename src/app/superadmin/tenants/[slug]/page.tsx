@@ -66,7 +66,7 @@ export default function TenantDetailPage() {
       .then(setUsuarios)
       .catch(() =>
         setToast({
-          msg: 'Error al cargar usuarios del tenant',
+          msg: 'Error al cargar usuarios del restaurante',
           type: 'error',
         })
       )
@@ -149,7 +149,7 @@ export default function TenantDetailPage() {
         <button
           onClick={() => router.push('/superadmin')}
           className="p-2 rounded-xl bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 text-slate-600 dark:text-slate-300 transition"
-          title="Volver a tenants"
+          title="Volver a restaurantes"
         >
           <ArrowLeft size={18} />
         </button>
@@ -161,7 +161,7 @@ export default function TenantDetailPage() {
               <span className="font-mono text-indigo-400">{slug}</span>
             </h1>
             <p className="text-slate-500 dark:text-slate-400 text-sm">
-              Gestión de usuarios del tenant
+              Gestión de usuarios del restaurante
             </p>
           </div>
         </div>
@@ -174,7 +174,7 @@ export default function TenantDetailPage() {
         </p>
       ) : usuarios.length === 0 ? (
         <p className="text-slate-500 dark:text-slate-400 text-center py-12">
-          No hay usuarios registrados para este tenant.
+          No hay usuarios registrados para este restaurante.
         </p>
       ) : (
         <div className="overflow-x-auto rounded-2xl border border-slate-200 dark:border-slate-700">

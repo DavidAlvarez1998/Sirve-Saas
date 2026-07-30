@@ -45,7 +45,7 @@ export default function TenantListPage() {
     getTenants()
       .then(setTenants)
       .catch(() =>
-        setToast({ msg: 'Error al cargar tenants', type: 'error' })
+        setToast({ msg: 'Error al cargar restaurantes', type: 'error' })
       )
       .finally(() => setLoading(false))
   }, [])
@@ -57,7 +57,7 @@ export default function TenantListPage() {
   const handleDesactivar = async (id: number, slug: string) => {
     try {
       await desactivarTenant(id)
-      setToast({ msg: `Tenant "${slug}" desactivado`, type: 'success' })
+      setToast({ msg: `Restaurante "${slug}" desactivado`, type: 'success' })
       load()
     } catch (e) {
       const err = e as { friendlyMessage?: string }
@@ -76,7 +76,7 @@ export default function TenantListPage() {
         <Building2 size={28} className="text-indigo-400" />
         <div>
           <h1 className="text-2xl font-bold text-slate-900 dark:text-white">
-            Tenants
+            Restaurantes
           </h1>
           <p className="text-slate-500 dark:text-slate-400 text-sm">
             Restaurantes registrados en la plataforma
@@ -90,7 +90,7 @@ export default function TenantListPage() {
         </p>
       ) : tenants.length === 0 ? (
         <p className="text-slate-500 dark:text-slate-400 text-center py-12">
-          No hay tenants registrados.
+          No hay restaurantes registrados.
         </p>
       ) : (
         <div className="overflow-x-auto rounded-2xl border border-slate-200 dark:border-slate-700">
@@ -171,7 +171,7 @@ export default function TenantListPage() {
                           router.push(`/superadmin/tenants/${t.slug}`)
                         }
                         className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-500/10 text-indigo-400 hover:bg-indigo-500/20 text-xs font-medium transition"
-                        title="Ver usuarios del tenant"
+                        title="Ver usuarios del restaurante"
                       >
                         <Users size={13} /> Ver detalle
                       </button>
@@ -197,8 +197,8 @@ export default function TenantListPage() {
       {confirm && (
         <ConfirmDialog
           open
-          title="Desactivar tenant"
-          message={`¿Seguro que querés desactivar "${confirm.slug}"? Los usuarios de ese tenant no podrán acceder.`}
+          title="Desactivar restaurante"
+          message={`¿Seguro que querés desactivar "${confirm.slug}"? Los usuarios de ese restaurante no podrán acceder.`}
           onConfirm={() => handleDesactivar(confirm.id, confirm.slug)}
           onCancel={() => setConfirm(null)}
         />

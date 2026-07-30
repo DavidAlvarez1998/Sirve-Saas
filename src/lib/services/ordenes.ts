@@ -1,4 +1,4 @@
-import type { Sql, TransactionSql } from 'postgres'
+import type { Sql } from 'postgres'
 import { NotFoundError, ConflictError, ValidationError } from '@/lib/errors'
 
 // ─── Domain Types ────────────────────────────────────────────────────────────
@@ -7,7 +7,7 @@ export interface OrdenItemIngrediente {
   id: number
   itemId: number
   ingredienteId: number
-  nombre: string
+  ingredienteNombre: string
   cantidad: number
   precioUnitario: number
 }
@@ -16,7 +16,7 @@ export interface OrdenItem {
   id: number
   ordenId: number
   productoId: number
-  nombreProducto: string
+  productoNombre: string
   cantidad: number
   precioUnitario: number
   notas: string | null
@@ -36,6 +36,7 @@ export interface Orden {
   id: number
   tipoOrden: string
   mesaId: number | null
+  mesaNumero: number | null
   nombreCliente: string | null
   telefonoCliente: string | null
   direccionEntrega: string | null
@@ -97,6 +98,7 @@ interface OrdenRow {
   id: bigint
   tipo_orden: string
   mesa_id: bigint | null
+  mesa_numero: number | null
   nombre_cliente: string | null
   telefono_cliente: string | null
   direccion_entrega: string | null
@@ -137,14 +139,6 @@ interface PagoRow {
 
 // ─── State machine ────────────────────────────────────────────────────────────
 
-const VALID_TRANSITIONS: Record<string, string[]> = {
-  ABIERTA: ['EN_PREPARACION', 'CANCELADA'],
-  EN_PREPARACION: ['LISTA', 'CANCELADA'],
-  LISTA: ['EN_CAMINO', 'ENTREGADA', 'CANCELADA'],
-  EN_CAMINO: ['ENTREGADA', 'CANCELADA'],
-  ENTREGADA: ['PAGADA'],
-}
-
 const ACTIVE_STATES = ['ABIERTA', 'EN_PREPARACION', 'LISTA', 'EN_CAMINO', 'ENTREGADA']
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -154,6 +148,7 @@ function toOrden(row: OrdenRow, items: OrdenItem[], pagos: Pago[]): Orden {
     id: Number(row.id),
     tipoOrden: row.tipo_orden,
     mesaId: row.mesa_id != null ? Number(row.mesa_id) : null,
+    mesaNumero: row.mesa_numero ?? null,
     nombreCliente: row.nombre_cliente,
     telefonoCliente: row.telefono_cliente,
     direccionEntrega: row.direccion_entrega,
@@ -172,7 +167,7 @@ function toItem(row: ItemRow, ingredientes: OrdenItemIngrediente[]): OrdenItem {
     id: Number(row.id),
     ordenId: Number(row.orden_id),
     productoId: Number(row.producto_id),
-    nombreProducto: row.nombre_producto,
+    productoNombre: row.nombre_producto,
     cantidad: row.cantidad,
     precioUnitario: Number(row.precio_unitario),
     notas: row.notas,
@@ -185,7 +180,7 @@ function toIngrediente(row: IngredienteRow): OrdenItemIngrediente {
     id: Number(row.id),
     itemId: Number(row.item_id),
     ingredienteId: Number(row.ingrediente_id),
-    nombre: row.nombre,
+    ingredienteNombre: row.nombre,
     cantidad: Number(row.cantidad),
     precioUnitario: Number(row.precio_unitario),
   }
@@ -202,12 +197,14 @@ function toPago(row: PagoRow): Pago {
   }
 }
 
-export async function buildOrden(sql: Sql | TransactionSql, id: number): Promise<Orden> {
+export async function buildOrden(sql: Sql, id: number): Promise<Orden> {
   const rows = await sql<OrdenRow[]>`
-    SELECT id, tipo_orden, mesa_id, nombre_cliente, telefono_cliente, direccion_entrega,
-           fecha_creacion, fecha_modificacion, estado, pagada, total_monto
-    FROM ordenes
-    WHERE id = ${id}
+    SELECT o.id, o.tipo_orden, o.mesa_id, m.numero AS mesa_numero,
+           o.nombre_cliente, o.telefono_cliente, o.direccion_entrega,
+           o.fecha_creacion, o.fecha_modificacion, o.estado, o.pagada, o.total_monto
+    FROM ordenes o
+    LEFT JOIN mesas m ON m.id = o.mesa_id
+    WHERE o.id = ${id}
     LIMIT 1
   `
   if (!rows[0]) throw new NotFoundError('Orden no encontrada')
@@ -221,18 +218,14 @@ export async function buildOrden(sql: Sql | TransactionSql, id: number): Promise
     ORDER BY oi.id
   `
 
-  const itemIds = itemRows.map((r) => Number(r.id))
-  let ingRows: IngredienteRow[] = []
-  if (itemIds.length > 0) {
-    ingRows = await sql<IngredienteRow[]>`
-      SELECT oii.id, oii.item_id, oii.ingrediente_id, ing.nombre,
-             oii.cantidad, oii.precio_unitario
-      FROM orden_item_ingredientes oii
-      JOIN ingredientes ing ON ing.id = oii.ingrediente_id
-      WHERE oii.item_id = ANY(${sql.array(itemIds)})
-      ORDER BY oii.id
-    `
-  }
+  const ingRows = await sql<IngredienteRow[]>`
+    SELECT oii.id, oii.item_id, oii.ingrediente_id, ing.nombre,
+           oii.cantidad, oii.precio_unitario
+    FROM orden_item_ingredientes oii
+    JOIN ingredientes ing ON ing.id = oii.ingrediente_id
+    WHERE oii.item_id IN (SELECT id FROM orden_items WHERE orden_id = ${id})
+    ORDER BY oii.id
+  `
 
   const ingByItem = new Map<number, OrdenItemIngrediente[]>()
   for (const ir of ingRows) {
@@ -255,7 +248,7 @@ export async function buildOrden(sql: Sql | TransactionSql, id: number): Promise
   return toOrden(rows[0], items, pagoRows.map(toPago))
 }
 
-async function recalcularTotal(sql: Sql | TransactionSql, ordenId: number): Promise<void> {
+async function recalcularTotal(sql: Sql, ordenId: number): Promise<void> {
   await sql`
     UPDATE ordenes
     SET total_monto = (
@@ -284,14 +277,15 @@ function assertOrdenActiva(orden: Orden): void {
 // ─── Public service functions ─────────────────────────────────────────────────
 
 export async function createOrden(sql: Sql, data: CreateOrdenData): Promise<Orden> {
-  return sql.begin(async (tx: TransactionSql) => {
+  await sql`BEGIN`
+  try {
     if (data.tipoOrden === 'MESA') {
       if (!data.mesaId) throw new NotFoundError('Mesa no encontrada')
-      const mesa = await tx`SELECT id FROM mesas WHERE id = ${data.mesaId} LIMIT 1`
+      const mesa = await sql`SELECT id FROM mesas WHERE id = ${data.mesaId} LIMIT 1`
       if (!mesa[0]) throw new NotFoundError('Mesa no encontrada')
     }
 
-    const rows = await tx<OrdenRow[]>`
+    const [insertedRow] = await sql<{ id: bigint }[]>`
       INSERT INTO ordenes (
         tipo_orden, mesa_id, nombre_cliente, telefono_cliente,
         direccion_entrega, estado, pagada, total_monto, fecha_creacion
@@ -306,53 +300,62 @@ export async function createOrden(sql: Sql, data: CreateOrdenData): Promise<Orde
         0,
         NOW()
       )
-      RETURNING id, tipo_orden, mesa_id, nombre_cliente, telefono_cliente,
-                direccion_entrega, fecha_creacion, fecha_modificacion, estado, pagada, total_monto
+      RETURNING id
     `
 
-    return toOrden(rows[0], [], [])
-  })
+    const result = await buildOrden(sql, Number(insertedRow.id))
+    await sql`COMMIT`
+    return result
+  } catch (e) {
+    await sql`ROLLBACK`
+    throw e
+  }
 }
 
 export async function getOrdenes(sql: Sql): Promise<Orden[]> {
   const rows = await sql<OrdenRow[]>`
-    SELECT id, tipo_orden, mesa_id, nombre_cliente, telefono_cliente, direccion_entrega,
-           fecha_creacion, fecha_modificacion, estado, pagada, total_monto
-    FROM ordenes
-    WHERE estado NOT IN ('PAGADA', 'CANCELADA')
-    ORDER BY id
+    SELECT o.id, o.tipo_orden, o.mesa_id, m.numero AS mesa_numero,
+           o.nombre_cliente, o.telefono_cliente, o.direccion_entrega,
+           o.fecha_creacion, o.fecha_modificacion, o.estado, o.pagada, o.total_monto
+    FROM ordenes o
+    LEFT JOIN mesas m ON m.id = o.mesa_id
+    WHERE o.estado NOT IN ('PAGADA', 'CANCELADA')
+    ORDER BY o.id
   `
 
   if (rows.length === 0) return []
-
-  const ordenIds = rows.map((r) => Number(r.id))
 
   const itemRows = await sql<ItemRow[]>`
     SELECT oi.id, oi.orden_id, oi.producto_id, p.nombre AS nombre_producto,
            oi.cantidad, oi.precio_unitario, oi.notas
     FROM orden_items oi
     JOIN productos p ON p.id = oi.producto_id
-    WHERE oi.orden_id = ANY(${sql.array(ordenIds)})
+    WHERE oi.orden_id IN (
+      SELECT id FROM ordenes WHERE estado NOT IN ('PAGADA', 'CANCELADA')
+    )
     ORDER BY oi.orden_id, oi.id
   `
 
-  const itemIds = itemRows.map((r) => Number(r.id))
-  let ingRows: IngredienteRow[] = []
-  if (itemIds.length > 0) {
-    ingRows = await sql<IngredienteRow[]>`
-      SELECT oii.id, oii.item_id, oii.ingrediente_id, ing.nombre,
-             oii.cantidad, oii.precio_unitario
-      FROM orden_item_ingredientes oii
-      JOIN ingredientes ing ON ing.id = oii.ingrediente_id
-      WHERE oii.item_id = ANY(${sql.array(itemIds)})
-      ORDER BY oii.id
-    `
-  }
+  const ingRows = await sql<IngredienteRow[]>`
+    SELECT oii.id, oii.item_id, oii.ingrediente_id, ing.nombre,
+           oii.cantidad, oii.precio_unitario
+    FROM orden_item_ingredientes oii
+    JOIN ingredientes ing ON ing.id = oii.ingrediente_id
+    WHERE oii.item_id IN (
+      SELECT oi.id FROM orden_items oi
+      WHERE oi.orden_id IN (
+        SELECT id FROM ordenes WHERE estado NOT IN ('PAGADA', 'CANCELADA')
+      )
+    )
+    ORDER BY oii.id
+  `
 
   const pagoRows = await sql<PagoRow[]>`
     SELECT id, orden_id, monto_pagado, metodo_pago, propina, fecha_pago
     FROM pagos
-    WHERE orden_id = ANY(${sql.array(ordenIds)})
+    WHERE orden_id IN (
+      SELECT id FROM ordenes WHERE estado NOT IN ('PAGADA', 'CANCELADA')
+    )
     ORDER BY id
   `
 
@@ -377,10 +380,7 @@ export async function getOrdenes(sql: Sql): Promise<Orden[]> {
     pagosByOrden.get(key)!.push(toPago(pr))
   }
 
-  return rows.map((r) => {
-    const oid = Number(r.id)
-    return toOrden(r, itemsByOrden.get(oid) ?? [], pagosByOrden.get(oid) ?? [])
-  })
+  return rows.map((r) => toOrden(r, itemsByOrden.get(Number(r.id)) ?? [], pagosByOrden.get(Number(r.id)) ?? []))
 }
 
 export async function getOrdenById(sql: Sql, id: number): Promise<Orden> {
@@ -391,52 +391,61 @@ export async function getHistorial(
   sql: Sql,
   page: number,
   size: number
-): Promise<{ content: Orden[]; totalElements: number }> {
-  const countRows = await sql<{ total: string }[]>`
-    SELECT COUNT(*)::text AS total FROM ordenes WHERE estado IN ('PAGADA', 'CANCELADA')
-  `
-  const totalElements = Number(countRows[0]?.total ?? 0)
-
+): Promise<{ content: Orden[]; page: number; hasNext: boolean }> {
   const offset = page * size
   const rows = await sql<OrdenRow[]>`
-    SELECT id, tipo_orden, mesa_id, nombre_cliente, telefono_cliente, direccion_entrega,
-           fecha_creacion, fecha_modificacion, estado, pagada, total_monto
-    FROM ordenes
-    WHERE estado IN ('PAGADA', 'CANCELADA')
-    ORDER BY fecha_creacion DESC
+    SELECT o.id, o.tipo_orden, o.mesa_id, m.numero AS mesa_numero,
+           o.nombre_cliente, o.telefono_cliente, o.direccion_entrega,
+           o.fecha_creacion, o.fecha_modificacion, o.estado, o.pagada, o.total_monto
+    FROM ordenes o
+    LEFT JOIN mesas m ON m.id = o.mesa_id
+    WHERE o.estado IN ('PAGADA', 'CANCELADA')
+    ORDER BY o.fecha_creacion DESC
     LIMIT ${size} OFFSET ${offset}
   `
 
-  if (rows.length === 0) return { content: [], totalElements }
-
-  const ordenIds = rows.map((r) => Number(r.id))
+  if (rows.length === 0) return { content: [], page, hasNext: false }
 
   const itemRows = await sql<ItemRow[]>`
     SELECT oi.id, oi.orden_id, oi.producto_id, p.nombre AS nombre_producto,
            oi.cantidad, oi.precio_unitario, oi.notas
     FROM orden_items oi
     JOIN productos p ON p.id = oi.producto_id
-    WHERE oi.orden_id = ANY(${sql.array(ordenIds)})
+    WHERE oi.orden_id IN (
+      SELECT id FROM ordenes
+      WHERE estado IN ('PAGADA', 'CANCELADA')
+      ORDER BY fecha_creacion DESC
+      LIMIT ${size} OFFSET ${offset}
+    )
     ORDER BY oi.orden_id, oi.id
   `
 
-  const itemIds = itemRows.map((r) => Number(r.id))
-  let ingRows: IngredienteRow[] = []
-  if (itemIds.length > 0) {
-    ingRows = await sql<IngredienteRow[]>`
-      SELECT oii.id, oii.item_id, oii.ingrediente_id, ing.nombre,
-             oii.cantidad, oii.precio_unitario
-      FROM orden_item_ingredientes oii
-      JOIN ingredientes ing ON ing.id = oii.ingrediente_id
-      WHERE oii.item_id = ANY(${sql.array(itemIds)})
-      ORDER BY oii.id
-    `
-  }
+  const ingRows = await sql<IngredienteRow[]>`
+    SELECT oii.id, oii.item_id, oii.ingrediente_id, ing.nombre,
+           oii.cantidad, oii.precio_unitario
+    FROM orden_item_ingredientes oii
+    JOIN ingredientes ing ON ing.id = oii.ingrediente_id
+    WHERE oii.item_id IN (
+      SELECT oi.id FROM orden_items oi
+      WHERE oi.orden_id IN (
+        SELECT id FROM ordenes
+        WHERE estado IN ('PAGADA', 'CANCELADA')
+        ORDER BY fecha_creacion DESC
+        LIMIT ${size} OFFSET ${offset}
+      )
+    )
+    ORDER BY oii.id
+  `
 
   const pagoRows = await sql<PagoRow[]>`
     SELECT id, orden_id, monto_pagado, metodo_pago, propina, fecha_pago
     FROM pagos
-    WHERE orden_id = ANY(${sql.array(ordenIds)})
+    WHERE orden_id IN (
+      SELECT id FROM ordenes
+      WHERE estado IN ('PAGADA', 'CANCELADA')
+      ORDER BY fecha_creacion DESC
+      LIMIT ${size} OFFSET ${offset}
+    )
     ORDER BY id
   `
 
@@ -466,7 +475,7 @@ export async function getHistorial(
     return toOrden(r, itemsByOrden.get(oid) ?? [], pagosByOrden.get(oid) ?? [])
   })
 
-  return { content, totalElements }
+  return { content, page, hasNext: content.length === size }
 }
 
 export async function updateOrden(sql: Sql, id: number, data: UpdateOrdenData): Promise<Orden> {
@@ -499,15 +508,17 @@ export async function deleteOrden(sql: Sql, id: number): Promise<void> {
 }
 
 export async function updateEstado(sql: Sql, id: number, nuevoEstado: string): Promise<Orden> {
-  const orden = await buildOrden(sql, id)
+  const rows = await sql<{ estado: string; pagada: boolean }[]>`
+    SELECT estado, pagada FROM ordenes WHERE id = ${id} LIMIT 1
+  `
+  if (!rows[0]) throw new NotFoundError('Orden no encontrada')
 
-  const allowed = VALID_TRANSITIONS[orden.estado] ?? []
-  if (!allowed.includes(nuevoEstado)) {
-    throw new ConflictError('Transición de estado inválida')
+  const { estado, pagada } = rows[0]
+  if (estado === 'PAGADA' || estado === 'CANCELADA') {
+    throw new ConflictError('No se puede modificar una orden pagada o cancelada')
   }
-
-  if (nuevoEstado === 'PAGADA' && !orden.pagada) {
-    throw new ConflictError('Transición de estado inválida')
+  if (nuevoEstado === 'PAGADA' && !pagada) {
+    throw new ConflictError('La orden aún no está pagada')
   }
 
   await sql`
@@ -520,8 +531,9 @@ export async function updateEstado(sql: Sql, id: number, nuevoEstado: string): P
 }
 
 export async function addItem(sql: Sql, ordenId: number, data: AddItemData): Promise<Orden> {
-  return sql.begin(async (tx: TransactionSql) => {
-    const ordenRows = await tx<OrdenRow[]>`
+  await sql`BEGIN`
+  try {
+    const ordenRows = await sql<OrdenRow[]>`
       SELECT id, estado, pagada FROM ordenes WHERE id = ${ordenId} LIMIT 1
     `
     if (!ordenRows[0]) throw new NotFoundError('Orden no encontrada')
@@ -529,12 +541,12 @@ export async function addItem(sql: Sql, ordenId: number, data: AddItemData): Pro
       throw new ConflictError('No se puede modificar una orden pagada o cancelada')
     }
 
-    const prodRows = await tx<{ id: bigint; precio: string }[]>`
+    const prodRows = await sql<{ id: bigint; precio: string }[]>`
       SELECT id, precio FROM productos WHERE id = ${data.productoId} LIMIT 1
     `
     if (!prodRows[0]) throw new NotFoundError('Producto no encontrado')
 
-    const [itemRow] = await tx<{ id: bigint }[]>`
+    const [itemRow] = await sql<{ id: bigint }[]>`
       INSERT INTO orden_items (orden_id, producto_id, cantidad, precio_unitario, notas)
       VALUES (${ordenId}, ${data.productoId}, ${data.cantidad}, ${prodRows[0].precio}, ${data.notas ?? null})
       RETURNING id
@@ -542,21 +554,26 @@ export async function addItem(sql: Sql, ordenId: number, data: AddItemData): Pro
 
     if (data.ingredientes && data.ingredientes.length > 0) {
       for (const ing of data.ingredientes) {
-        const ingRows = await tx<{ id: bigint; precio: string }[]>`
+        const ingRows = await sql<{ id: bigint; precio: string }[]>`
           SELECT id, precio FROM ingredientes WHERE id = ${ing.ingredienteId} LIMIT 1
         `
         if (!ingRows[0]) throw new NotFoundError(`Ingrediente ${ing.ingredienteId} no encontrado`)
 
-        await tx`
+        await sql`
           INSERT INTO orden_item_ingredientes (item_id, ingrediente_id, cantidad, precio_unitario)
           VALUES (${Number(itemRow.id)}, ${ing.ingredienteId}, ${ing.cantidad}, ${ingRows[0].precio})
         `
       }
     }
 
-    await recalcularTotal(tx, ordenId)
-    return buildOrden(tx, ordenId)
-  })
+    await recalcularTotal(sql, ordenId)
+    const result = await buildOrden(sql, ordenId)
+    await sql`COMMIT`
+    return result
+  } catch (e) {
+    await sql`ROLLBACK`
+    throw e
+  }
 }
 
 export async function updateItem(
@@ -565,8 +582,9 @@ export async function updateItem(
   itemId: number,
   data: UpdateItemData
 ): Promise<Orden> {
-  return sql.begin(async (tx: TransactionSql) => {
-    const ordenRows = await tx<OrdenRow[]>`
+  await sql`BEGIN`
+  try {
+    const ordenRows = await sql<OrdenRow[]>`
       SELECT id, estado, pagada FROM ordenes WHERE id = ${ordenId} LIMIT 1
     `
     if (!ordenRows[0]) throw new NotFoundError('Orden no encontrada')
@@ -574,19 +592,19 @@ export async function updateItem(
       throw new ConflictError('No se puede modificar una orden pagada o cancelada')
     }
 
-    const itemRows = await tx<{ id: bigint; orden_id: bigint }[]>`
+    const itemRows = await sql<{ id: bigint; orden_id: bigint }[]>`
       SELECT id, orden_id FROM orden_items WHERE id = ${itemId} AND orden_id = ${ordenId} LIMIT 1
     `
     if (!itemRows[0]) throw new NotFoundError('Item no encontrado en esta orden')
 
-    const prodRows = await tx<{ id: bigint; precio: string }[]>`
+    const prodRows = await sql<{ id: bigint; precio: string }[]>`
       SELECT id, precio FROM productos WHERE id = ${data.productoId} LIMIT 1
     `
     if (!prodRows[0]) throw new NotFoundError('Producto no encontrado')
 
-    await tx`DELETE FROM orden_item_ingredientes WHERE item_id = ${itemId}`
+    await sql`DELETE FROM orden_item_ingredientes WHERE item_id = ${itemId}`
 
-    await tx`
+    await sql`
       UPDATE orden_items
       SET producto_id = ${data.productoId},
           cantidad = ${data.cantidad},
@@ -597,26 +615,32 @@ export async function updateItem(
 
     if (data.ingredientes && data.ingredientes.length > 0) {
       for (const ing of data.ingredientes) {
-        const ingRows = await tx<{ id: bigint; precio: string }[]>`
+        const ingRows = await sql<{ id: bigint; precio: string }[]>`
           SELECT id, precio FROM ingredientes WHERE id = ${ing.ingredienteId} LIMIT 1
         `
         if (!ingRows[0]) throw new NotFoundError(`Ingrediente ${ing.ingredienteId} no encontrado`)
 
-        await tx`
+        await sql`
           INSERT INTO orden_item_ingredientes (item_id, ingrediente_id, cantidad, precio_unitario)
           VALUES (${itemId}, ${ing.ingredienteId}, ${ing.cantidad}, ${ingRows[0].precio})
         `
       }
     }
 
-    await recalcularTotal(tx, ordenId)
-    return buildOrden(tx, ordenId)
-  })
+    await recalcularTotal(sql, ordenId)
+    const result = await buildOrden(sql, ordenId)
+    await sql`COMMIT`
+    return result
+  } catch (e) {
+    await sql`ROLLBACK`
+    throw e
+  }
 }
 
 export async function removeItem(sql: Sql, ordenId: number, itemId: number): Promise<Orden> {
-  return sql.begin(async (tx: TransactionSql) => {
-    const ordenRows = await tx<OrdenRow[]>`
+  await sql`BEGIN`
+  try {
+    const ordenRows = await sql<OrdenRow[]>`
       SELECT id, estado, pagada FROM ordenes WHERE id = ${ordenId} LIMIT 1
     `
     if (!ordenRows[0]) throw new NotFoundError('Orden no encontrada')
@@ -624,22 +648,28 @@ export async function removeItem(sql: Sql, ordenId: number, itemId: number): Pro
       throw new ConflictError('No se puede modificar una orden pagada o cancelada')
     }
 
-    const itemRows = await tx<{ id: bigint }[]>`
+    const itemRows = await sql<{ id: bigint }[]>`
       SELECT id FROM orden_items WHERE id = ${itemId} AND orden_id = ${ordenId} LIMIT 1
     `
     if (!itemRows[0]) throw new NotFoundError('Item no encontrado en esta orden')
 
-    await tx`DELETE FROM orden_item_ingredientes WHERE item_id = ${itemId}`
-    await tx`DELETE FROM orden_items WHERE id = ${itemId} AND orden_id = ${ordenId}`
+    await sql`DELETE FROM orden_item_ingredientes WHERE item_id = ${itemId}`
+    await sql`DELETE FROM orden_items WHERE id = ${itemId} AND orden_id = ${ordenId}`
 
-    await recalcularTotal(tx, ordenId)
-    return buildOrden(tx, ordenId)
-  })
+    await recalcularTotal(sql, ordenId)
+    const result = await buildOrden(sql, ordenId)
+    await sql`COMMIT`
+    return result
+  } catch (e) {
+    await sql`ROLLBACK`
+    throw e
+  }
 }
 
 export async function pagarOrden(sql: Sql, ordenId: number, data: PagarOrdenData): Promise<Orden> {
-  return sql.begin(async (tx: TransactionSql) => {
-    const ordenRows = await tx<OrdenRow[]>`
+  await sql`BEGIN`
+  try {
+    const ordenRows = await sql<OrdenRow[]>`
       SELECT id, estado, pagada, total_monto FROM ordenes WHERE id = ${ordenId} LIMIT 1
     `
     if (!ordenRows[0]) throw new NotFoundError('Orden no encontrada')
@@ -647,30 +677,36 @@ export async function pagarOrden(sql: Sql, ordenId: number, data: PagarOrdenData
       throw new ConflictError('Esta orden ya está pagada o fue cancelada')
     }
 
-    await tx`
+    await sql`
       INSERT INTO pagos (orden_id, monto_pagado, metodo_pago, propina, fecha_pago)
       VALUES (${ordenId}, ${data.montoPagado}, ${data.metodoPago}, ${data.propina ?? null}, NOW())
     `
 
-    const totalRows = await tx<{ total: string }[]>`
+    const totalRows = await sql<{ total: string }[]>`
       SELECT COALESCE(SUM(monto_pagado), 0)::text AS total FROM pagos WHERE orden_id = ${ordenId}
     `
     const totalPagado = Number(totalRows[0]?.total ?? 0)
     const totalMonto = Number(ordenRows[0].total_monto ?? 0)
 
     if (totalPagado >= totalMonto) {
-      await tx`UPDATE ordenes SET pagada = true, fecha_modificacion = NOW() WHERE id = ${ordenId}`
+      await sql`UPDATE ordenes SET pagada = true, fecha_modificacion = NOW() WHERE id = ${ordenId}`
     } else {
-      await tx`UPDATE ordenes SET fecha_modificacion = NOW() WHERE id = ${ordenId}`
+      await sql`UPDATE ordenes SET fecha_modificacion = NOW() WHERE id = ${ordenId}`
     }
 
-    return buildOrden(tx, ordenId)
-  })
+    const result = await buildOrden(sql, ordenId)
+    await sql`COMMIT`
+    return result
+  } catch (e) {
+    await sql`ROLLBACK`
+    throw e
+  }
 }
 
-export async function separarItem(sql: Sql, ordenId: number, itemId: number): Promise<Orden> {
-  return sql.begin(async (tx: TransactionSql) => {
-    const ordenRows = await tx<OrdenRow[]>`
+export async function separarItem(sql: Sql, ordenId: number, itemId: number): Promise<{ orden: Orden; nuevoItemId: number }> {
+  await sql`BEGIN`
+  try {
+    const ordenRows = await sql<OrdenRow[]>`
       SELECT id, estado FROM ordenes WHERE id = ${ordenId} LIMIT 1
     `
     if (!ordenRows[0]) throw new NotFoundError('Orden no encontrada')
@@ -678,7 +714,7 @@ export async function separarItem(sql: Sql, ordenId: number, itemId: number): Pr
       throw new ConflictError('No se puede modificar una orden pagada o cancelada')
     }
 
-    const itemRows = await tx<{ id: bigint; cantidad: number; precio_unitario: string; notas: string | null; producto_id: bigint }[]>`
+    const itemRows = await sql<{ id: bigint; cantidad: number; precio_unitario: string; notas: string | null; producto_id: bigint }[]>`
       SELECT id, cantidad, precio_unitario, notas, producto_id
       FROM orden_items
       WHERE id = ${itemId} AND orden_id = ${ordenId}
@@ -692,15 +728,15 @@ export async function separarItem(sql: Sql, ordenId: number, itemId: number): Pr
       throw new ConflictError('El ítem solo tiene una unidad, no se puede separar')
     }
 
-    await tx`UPDATE orden_items SET cantidad = ${item.cantidad - 1} WHERE id = ${itemId}`
+    await sql`UPDATE orden_items SET cantidad = ${item.cantidad - 1} WHERE id = ${itemId}`
 
-    const ingRows = await tx<{ ingrediente_id: bigint; cantidad: string; precio_unitario: string }[]>`
+    const ingRows = await sql<{ ingrediente_id: bigint; cantidad: string; precio_unitario: string }[]>`
       SELECT ingrediente_id, cantidad, precio_unitario
       FROM orden_item_ingredientes
       WHERE item_id = ${itemId}
     `
 
-    const [newItem] = await tx<{ id: bigint }[]>`
+    const [newItem] = await sql<{ id: bigint }[]>`
       INSERT INTO orden_items (orden_id, producto_id, cantidad, precio_unitario, notas)
       VALUES (${ordenId}, ${Number(item.producto_id)}, 1, ${item.precio_unitario}, ${item.notas})
       RETURNING id
@@ -708,15 +744,20 @@ export async function separarItem(sql: Sql, ordenId: number, itemId: number): Pr
 
     if (ingRows.length > 0) {
       for (const ing of ingRows) {
-        await tx`
+        await sql`
           INSERT INTO orden_item_ingredientes (item_id, ingrediente_id, cantidad, precio_unitario)
           VALUES (${Number(newItem.id)}, ${Number(ing.ingrediente_id)}, ${ing.cantidad}, ${ing.precio_unitario})
         `
       }
     }
 
-    return buildOrden(tx, ordenId)
-  })
+    const result = await buildOrden(sql, ordenId)
+    await sql`COMMIT`
+    return { orden: result, nuevoItemId: Number(newItem.id) }
+  } catch (e) {
+    await sql`ROLLBACK`
+    throw e
+  }
 }
 
 export async function dividirOrden(
@@ -724,8 +765,9 @@ export async function dividirOrden(
   ordenId: number,
   data: DividirOrdenData
 ): Promise<{ ordenOriginal: Orden; ordenNueva: Orden }> {
-  return sql.begin(async (tx: TransactionSql) => {
-    const ordenRows = await tx<OrdenRow[]>`
+  await sql`BEGIN`
+  try {
+    const ordenRows = await sql<OrdenRow[]>`
       SELECT id, tipo_orden, mesa_id, nombre_cliente, telefono_cliente, direccion_entrega,
              estado, pagada, total_monto
       FROM ordenes WHERE id = ${ordenId} LIMIT 1
@@ -736,7 +778,7 @@ export async function dividirOrden(
       throw new ConflictError('No se puede dividir una orden pagada o cancelada')
     }
 
-    const allItemRows = await tx<{ id: bigint; cantidad: number; precio_unitario: string; notas: string | null; producto_id: bigint }[]>`
+    const allItemRows = await sql<{ id: bigint; cantidad: number; precio_unitario: string; notas: string | null; producto_id: bigint }[]>`
       SELECT id, cantidad, precio_unitario, notas, producto_id
       FROM orden_items
       WHERE orden_id = ${ordenId}
@@ -760,7 +802,7 @@ export async function dividirOrden(
       throw new ValidationError('No se pueden mover todos los ítems')
     }
 
-    const [nuevaOrdenRow] = await tx<{ id: bigint }[]>`
+    const [nuevaOrdenRow] = await sql<{ id: bigint }[]>`
       INSERT INTO ordenes (
         tipo_orden, mesa_id, nombre_cliente, telefono_cliente,
         direccion_entrega, estado, pagada, total_monto, fecha_creacion
@@ -784,7 +826,7 @@ export async function dividirOrden(
       const cantidadASplit = divisionMap.get(itemId)
       if (!cantidadASplit) continue
 
-      const ingRows = await tx<{ ingrediente_id: bigint; cantidad: string; precio_unitario: string }[]>`
+      const ingRows = await sql<{ ingrediente_id: bigint; cantidad: string; precio_unitario: string }[]>`
         SELECT ingrediente_id, cantidad, precio_unitario
         FROM orden_item_ingredientes
         WHERE item_id = ${itemId}
@@ -793,11 +835,11 @@ export async function dividirOrden(
       const restante = item.cantidad - cantidadASplit
 
       if (restante === 0) {
-        await tx`UPDATE orden_items SET orden_id = ${nuevaOrdenId} WHERE id = ${itemId}`
+        await sql`UPDATE orden_items SET orden_id = ${nuevaOrdenId} WHERE id = ${itemId}`
       } else {
-        await tx`UPDATE orden_items SET cantidad = ${restante} WHERE id = ${itemId}`
+        await sql`UPDATE orden_items SET cantidad = ${restante} WHERE id = ${itemId}`
 
-        const [newItemRow] = await tx<{ id: bigint }[]>`
+        const [newItemRow] = await sql<{ id: bigint }[]>`
           INSERT INTO orden_items (orden_id, producto_id, cantidad, precio_unitario, notas)
           VALUES (${nuevaOrdenId}, ${Number(item.producto_id)}, ${cantidadASplit}, ${item.precio_unitario}, ${item.notas})
           RETURNING id
@@ -805,7 +847,7 @@ export async function dividirOrden(
 
         if (ingRows.length > 0) {
           for (const ing of ingRows) {
-            await tx`
+            await sql`
               INSERT INTO orden_item_ingredientes (item_id, ingrediente_id, cantidad, precio_unitario)
               VALUES (${Number(newItemRow.id)}, ${Number(ing.ingrediente_id)}, ${ing.cantidad}, ${ing.precio_unitario})
             `
@@ -814,12 +856,16 @@ export async function dividirOrden(
       }
     }
 
-    await recalcularTotal(tx, ordenId)
-    await recalcularTotal(tx, nuevaOrdenId)
+    await recalcularTotal(sql, ordenId)
+    await recalcularTotal(sql, nuevaOrdenId)
 
-    const ordenOriginal = await buildOrden(tx, ordenId)
-    const ordenNueva = await buildOrden(tx, nuevaOrdenId)
+    const ordenOriginal = await buildOrden(sql, ordenId)
+    const ordenNueva = await buildOrden(sql, nuevaOrdenId)
 
+    await sql`COMMIT`
     return { ordenOriginal, ordenNueva }
-  })
+  } catch (e) {
+    await sql`ROLLBACK`
+    throw e
+  }
 }

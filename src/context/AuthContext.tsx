@@ -9,7 +9,6 @@ import {
   useState,
 } from 'react'
 import api from '@/lib/api/axios'
-import { resolveTenantSlug } from '@/lib/tenant'
 import { setAuthCookie, clearAuthCookie } from '@/lib/auth-cookie'
 import type { AuthSession, UserRole, LoginResponse } from '@/types'
 
@@ -18,7 +17,6 @@ interface AuthContextValue {
   token: string | null
   roles: UserRole[]
   tenantSlug: string | null
-  tenantMissing: boolean
   isAuthenticated: boolean
   hasRole: (r: string) => boolean
   login: (username: string, password: string) => Promise<AuthSession>
@@ -39,16 +37,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return null
     }
   })
-
-  // Tenant derived exclusively from the URL — single source of truth (ADR-7)
-  const tenantSlug = useMemo(
-    () =>
-      typeof window !== 'undefined'
-        ? resolveTenantSlug(window.location.hostname)
-        : null,
-    []
-  )
-  const tenantMissing = tenantSlug === null
 
   const login = useCallback(async (username: string, password: string): Promise<AuthSession> => {
     const { data } = await api.post<LoginResponse>('/auth/login', { username, password })
@@ -91,14 +79,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       user: auth?.username ?? null,
       token: auth?.token ?? null,
       roles: (auth?.roles ?? []) as UserRole[],
-      tenantSlug,
-      tenantMissing,
+      tenantSlug: auth?.tenantId ?? null,
       isAuthenticated: !!auth?.token,
       hasRole: (r: string) => (auth?.roles ?? []).includes(r as UserRole),
       login,
       logout,
     }),
-    [auth, tenantSlug, tenantMissing, login, logout]
+    [auth, login, logout]
   )
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

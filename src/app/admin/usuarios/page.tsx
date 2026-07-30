@@ -6,6 +6,7 @@ import Modal from '../../../components/ui/Modal'
 import ConfirmDialog from '../../../components/ui/ConfirmDialog'
 import Toast from '../../../components/ui/Toast'
 import { Plus, Users, Pencil, Trash2 } from 'lucide-react'
+import { useAuth } from '../../../context/AuthContext'
 import type { Usuario, UserRole } from '../../../types'
 
 const ROLES_DISPONIBLES: UserRole[] = ['MESERO', 'COCINA']
@@ -26,6 +27,7 @@ interface FormErrors {
 const emptyForm: UserForm = { username: '', password: '', roles: [], activo: true }
 
 export default function AdminUsuarios() {
+  const { user: currentUser } = useAuth()
   const [usuarios, setUsuarios] = useState<Usuario[]>([])
   const [loading, setLoading] = useState(true)
 
@@ -185,13 +187,15 @@ export default function AdminUsuarios() {
                       >
                         <Pencil size={14} />
                       </button>
-                      <button
-                        onClick={() => setConfirmDelete({ id: u.id, username: u.username })}
-                        className="p-1.5 rounded-lg bg-red-500/10 hover:bg-red-500/20 text-red-400 transition"
-                        title="Eliminar"
-                      >
-                        <Trash2 size={14} />
-                      </button>
+                      {u.username !== currentUser && (
+                        <button
+                          onClick={() => setConfirmDelete({ id: u.id, username: u.username })}
+                          className="p-1.5 rounded-lg bg-red-500/10 hover:bg-red-500/20 text-red-400 transition"
+                          title="Eliminar"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      )}
                     </div>
                   </td>
                 </tr>
@@ -245,25 +249,27 @@ export default function AdminUsuarios() {
             {errors.password && <p className="mt-1 text-xs text-red-400">{errors.password}</p>}
           </div>
 
-          <div>
-            <label className="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-2">Roles</label>
-            <div className="flex gap-3">
-              {ROLES_DISPONIBLES.map(rol => (
-                <label key={rol} className="flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={form.roles.includes(rol)}
-                    onChange={() => { handleRolToggle(rol); setErrors(ev => ({ ...ev, roles: undefined })) }}
-                    className="w-4 h-4 rounded accent-orange-500"
-                  />
-                  <span className="text-sm text-slate-600 dark:text-slate-300">{rol}</span>
-                </label>
-              ))}
+          {editingUser?.username !== currentUser && (
+            <div>
+              <label className="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-2">Roles</label>
+              <div className="flex gap-3">
+                {ROLES_DISPONIBLES.map(rol => (
+                  <label key={rol} className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={form.roles.includes(rol)}
+                      onChange={() => { handleRolToggle(rol); setErrors(ev => ({ ...ev, roles: undefined })) }}
+                      className="w-4 h-4 rounded accent-orange-500"
+                    />
+                    <span className="text-sm text-slate-600 dark:text-slate-300">{rol}</span>
+                  </label>
+                ))}
+              </div>
+              {errors.roles && <p className="mt-1 text-xs text-red-400">{errors.roles}</p>}
             </div>
-            {errors.roles && <p className="mt-1 text-xs text-red-400">{errors.roles}</p>}
-          </div>
+          )}
 
-          {editingUser && (
+          {editingUser && editingUser.username !== currentUser && (
             <div>
               <label className="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-2">Estado</label>
               <div className="flex gap-4">
