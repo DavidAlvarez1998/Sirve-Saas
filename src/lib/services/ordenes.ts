@@ -137,10 +137,6 @@ interface PagoRow {
   fecha_pago: Date
 }
 
-// ─── State machine ────────────────────────────────────────────────────────────
-
-const ACTIVE_STATES = ['ABIERTA', 'EN_PREPARACION', 'LISTA', 'EN_CAMINO', 'ENTREGADA']
-
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function toOrden(row: OrdenRow, items: OrdenItem[], pagos: Pago[]): Orden {
@@ -268,12 +264,6 @@ async function recalcularTotal(sql: Sql, ordenId: number): Promise<void> {
   `
 }
 
-function assertOrdenActiva(orden: Orden): void {
-  if (!ACTIVE_STATES.includes(orden.estado)) {
-    throw new ConflictError('La orden no está en un estado activo')
-  }
-}
-
 // ─── Public service functions ─────────────────────────────────────────────────
 
 export async function createOrden(sql: Sql, data: CreateOrdenData): Promise<Orden> {
@@ -320,6 +310,7 @@ export async function getOrdenes(sql: Sql): Promise<Orden[]> {
     FROM ordenes o
     LEFT JOIN mesas m ON m.id = o.mesa_id
     WHERE o.estado NOT IN ('PAGADA', 'CANCELADA')
+      AND NOT (o.estado = 'ENTREGADA' AND o.pagada = true)
     ORDER BY o.id
   `
 
@@ -331,7 +322,7 @@ export async function getOrdenes(sql: Sql): Promise<Orden[]> {
     FROM orden_items oi
     JOIN productos p ON p.id = oi.producto_id
     WHERE oi.orden_id IN (
-      SELECT id FROM ordenes WHERE estado NOT IN ('PAGADA', 'CANCELADA')
+      SELECT id FROM ordenes WHERE estado NOT IN ('PAGADA', 'CANCELADA') AND NOT (estado = 'ENTREGADA' AND pagada = true)
     )
     ORDER BY oi.orden_id, oi.id
   `
@@ -344,7 +335,7 @@ export async function getOrdenes(sql: Sql): Promise<Orden[]> {
     WHERE oii.item_id IN (
       SELECT oi.id FROM orden_items oi
       WHERE oi.orden_id IN (
-        SELECT id FROM ordenes WHERE estado NOT IN ('PAGADA', 'CANCELADA')
+        SELECT id FROM ordenes WHERE estado NOT IN ('PAGADA', 'CANCELADA') AND NOT (estado = 'ENTREGADA' AND pagada = true)
       )
     )
     ORDER BY oii.id
@@ -354,7 +345,7 @@ export async function getOrdenes(sql: Sql): Promise<Orden[]> {
     SELECT id, orden_id, monto_pagado, metodo_pago, propina, fecha_pago
     FROM pagos
     WHERE orden_id IN (
-      SELECT id FROM ordenes WHERE estado NOT IN ('PAGADA', 'CANCELADA')
+      SELECT id FROM ordenes WHERE estado NOT IN ('PAGADA', 'CANCELADA') AND NOT (estado = 'ENTREGADA' AND pagada = true)
     )
     ORDER BY id
   `
@@ -399,7 +390,7 @@ export async function getHistorial(
            o.fecha_creacion, o.fecha_modificacion, o.estado, o.pagada, o.total_monto
     FROM ordenes o
     LEFT JOIN mesas m ON m.id = o.mesa_id
-    WHERE o.estado IN ('PAGADA', 'CANCELADA')
+    WHERE o.estado IN ('PAGADA', 'CANCELADA') OR (o.estado = 'ENTREGADA' AND o.pagada = true)
     ORDER BY o.fecha_creacion DESC
     LIMIT ${size} OFFSET ${offset}
   `
@@ -413,7 +404,7 @@ export async function getHistorial(
     JOIN productos p ON p.id = oi.producto_id
     WHERE oi.orden_id IN (
       SELECT id FROM ordenes
-      WHERE estado IN ('PAGADA', 'CANCELADA')
+      WHERE estado IN ('PAGADA', 'CANCELADA') OR (estado = 'ENTREGADA' AND pagada = true)
       ORDER BY fecha_creacion DESC
       LIMIT ${size} OFFSET ${offset}
     )
@@ -442,7 +433,7 @@ export async function getHistorial(
     FROM pagos
     WHERE orden_id IN (
       SELECT id FROM ordenes
-      WHERE estado IN ('PAGADA', 'CANCELADA')
+      WHERE estado IN ('PAGADA', 'CANCELADA') OR (estado = 'ENTREGADA' AND pagada = true)
       ORDER BY fecha_creacion DESC
       LIMIT ${size} OFFSET ${offset}
     )
