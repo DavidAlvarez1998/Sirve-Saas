@@ -2,10 +2,73 @@
 
 @custom-variant dark (&:where(.dark, .dark *));
 
+@theme {
+  /* ── Color tokens: light defaults ──────────────────────────── */
+  --color-background:        hsl(30 20% 98%);
+  --color-foreground:        hsl(24 10% 10%);
+  --color-surface:           hsl(0 0% 100%);
+  --color-surface-raised:    hsl(30 15% 96%);
+  --color-surface-sunken:    hsl(30 15% 94%);
+  --color-primary:           hsl(22 92% 50%);
+  --color-primary-foreground: hsl(0 0% 100%);
+  --color-primary-hover:     hsl(22 92% 45%);
+  --color-secondary:         hsl(30 10% 92%);
+  --color-secondary-foreground: hsl(24 10% 15%);
+  --color-muted:             hsl(30 10% 94%);
+  --color-muted-foreground:  hsl(24 6% 45%);
+  --color-accent:            hsl(22 92% 96%);
+  --color-border:            hsl(30 10% 88%);
+  --color-input:             hsl(30 10% 88%);
+  --color-ring:              hsl(22 92% 50%);
+  --color-destructive:       hsl(0 84% 55%);
+  --color-destructive-foreground: hsl(0 0% 100%);
+  --color-success:           hsl(142 70% 40%);
+  --color-warning:           hsl(35 92% 50%);
+  --color-info:              hsl(210 85% 50%);
+
+  /* ── Radius tokens ──────────────────────────────────────────── */
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+  --radius-xl: 12px;
+}
+
+@variant dark {
+  @theme {
+    /* ── Color tokens: dark overrides ───────────────────────────── */
+    --color-background:        hsl(24 10% 8%);
+    --color-foreground:        hsl(30 15% 96%);
+    --color-surface:           hsl(24 10% 11%);
+    --color-surface-raised:    hsl(24 8% 15%);
+    --color-surface-sunken:    hsl(24 10% 6%);
+    --color-primary:           hsl(22 92% 55%);
+    --color-primary-hover:     hsl(22 92% 60%);
+    --color-secondary:         hsl(24 8% 20%);
+    --color-secondary-foreground: hsl(24 10% 15%);
+    --color-muted:             hsl(24 8% 18%);
+    --color-muted-foreground:  hsl(30 8% 65%);
+    --color-accent:            hsl(22 40% 20%);
+    --color-border:            hsl(24 8% 22%);
+    --color-input:             hsl(24 8% 24%);
+    --color-ring:              hsl(22 92% 55%);
+    --color-destructive:       hsl(0 75% 55%);
+    --color-destructive-foreground: hsl(0 0% 100%);
+    --color-success:           hsl(142 65% 50%);
+    --color-warning:           hsl(35 92% 58%);
+    --color-info:              hsl(210 85% 60%);
+  }
+}
+
 @layer base {
   body {
     font-family: Inter, sans-serif;
     -webkit-tap-highlight-color: transparent;
+  }
+}
+
+@layer utilities {
+  .touch-target {
+    min-height: 2.75rem;
   }
 }
 
