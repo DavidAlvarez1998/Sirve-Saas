@@ -17,13 +17,14 @@ import {
 import Modal from '../../../components/ui/Modal'
 import ConfirmDialog from '../../../components/ui/ConfirmDialog'
 import StatusBadge from '../../../components/ui/StatusBadge'
-import Toast from '../../../components/ui/Toast'
+import { toast } from 'sonner'
 import {
   Plus, Trash2, CreditCard, ChevronRight, X, Check, Package, Salad,
   Pencil, MapPin, User, Phone, Copy,
 } from 'lucide-react'
 import { fmt } from '../../../lib/format'
 import { useMesero } from '../../../context/MeseroContext'
+import { ESTADO_LABEL } from '../../../lib/estado-orden'
 import type {
   Orden, OrdenItem, EstadoOrden, TipoOrden, MetodoPago, Producto, Ingrediente,
 } from '../../../types'
@@ -37,14 +38,16 @@ const METODO_LABEL: Record<MetodoPago, string> = {
   TARJETA: 'Tarjeta',
   TRANSFERENCIA: 'Transferencia',
 }
-const ESTADO_INFO: Record<EstadoOrden, { label: string; cls: string }> = {
-  ABIERTA:        { label: 'Abierta',        cls: 'bg-blue-500/20 border-blue-500/40 text-blue-400' },
-  EN_PREPARACION: { label: 'En preparación', cls: 'bg-yellow-500/20 border-yellow-500/40 text-yellow-400' },
-  LISTA:          { label: 'Lista',          cls: 'bg-green-500/20 border-green-500/40 text-green-400' },
-  EN_CAMINO:      { label: 'En camino',      cls: 'bg-indigo-500/20 border-indigo-500/40 text-indigo-400' },
-  ENTREGADA:      { label: 'Entregada',      cls: 'bg-purple-500/20 border-purple-500/40 text-purple-400' },
-  PAGADA:         { label: 'Pagada',         cls: 'bg-slate-300 dark:bg-slate-600 text-slate-600 dark:text-slate-400' },
-  CANCELADA:      { label: 'Cancelada',      cls: 'bg-red-500/20 border-red-500/40 text-red-400' },
+
+// Token-based border+text classes for estado buttons/chips (used inline where Badge is not enough)
+const ESTADO_CLS: Record<string, string> = {
+  ABIERTA:        'bg-info/20 border-info/40 text-info',
+  EN_PREPARACION: 'bg-warning/20 border-warning/40 text-warning',
+  LISTA:          'bg-success/20 border-success/40 text-success',
+  EN_CAMINO:      'bg-info/20 border-info/40 text-info',
+  ENTREGADA:      'bg-success/20 border-success/40 text-success',
+  PAGADA:         'bg-muted border-border text-muted-foreground',
+  CANCELADA:      'bg-destructive/20 border-destructive/40 text-destructive',
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -69,7 +72,6 @@ export default function MeseroOrdenes() {
   const [histHasNext, setHistHasNext] = useState(false)
   const [histLoading, setHistLoading] = useState(false)
   const [selected, setSelected] = useState<Orden | null>(null)
-  const [toast, setToast] = useState<{ msg: string; type: 'success' | 'error' } | null>(null)
 
   const [addModal, setAddModal] = useState(false)
   const [payModal, setPayModal] = useState(false)
@@ -175,7 +177,7 @@ export default function MeseroOrdenes() {
       syncOrden(updated)
     } catch (e: unknown) {
       const err = e as { friendlyMessage?: string }
-      setToast({ msg: err.friendlyMessage || 'Error', type: 'error' })
+      toast.error(err.friendlyMessage || 'Error')
     } finally {
       setConfirmRemoveItem(null)
     }
@@ -186,12 +188,12 @@ export default function MeseroOrdenes() {
     try {
       await deleteOrden(confirmDel)
       setSelected(null)
-      setToast({ msg: 'Orden eliminada', type: 'success' })
+      toast.success('Orden eliminada')
       invalidateOrdenes()
       invalidateMesas()
     } catch (e: unknown) {
       const err = e as { friendlyMessage?: string }
-      setToast({ msg: err.friendlyMessage || 'Error', type: 'error' })
+      toast.error(err.friendlyMessage || 'Error')
     } finally {
       setConfirmDel(null)
     }
@@ -209,7 +211,7 @@ export default function MeseroOrdenes() {
         if (nuevoItem) { setEditingItem(nuevoItem); setEditModal(true) }
       } catch (e: unknown) {
         const err = e as { friendlyMessage?: string }
-        setToast({ msg: err.friendlyMessage || 'Error', type: 'error' })
+        toast.error(err.friendlyMessage || 'Error')
       }
       return
     }
@@ -250,10 +252,10 @@ export default function MeseroOrdenes() {
       setSplitSelected(new Set())
       invalidateOrdenes()
       invalidateMesas()
-      setToast({ msg: `Orden dividida → nueva orden #${nueva.id} creada`, type: 'success' })
+      toast.success(`Orden dividida → nueva orden #${nueva.id} creada`)
     } catch (e: unknown) {
       const err = e as { friendlyMessage?: string }
-      setToast({ msg: err.friendlyMessage || 'Error al dividir la orden', type: 'error' })
+      toast.error(err.friendlyMessage || 'Error al dividir la orden')
     } finally {
       setSplitting(false)
     }
@@ -264,24 +266,22 @@ export default function MeseroOrdenes() {
 
   return (
     <div className="flex flex-col md:flex-row h-screen overflow-hidden">
-      {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
-
       {/* Order list panel */}
       <div
-        className={`w-full md:w-80 md:border-r border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 flex flex-col flex-1 md:flex-none min-h-0 ${selected ? 'hidden md:flex' : 'flex'}`}
+        className={`w-full md:w-80 md:border-r border-border bg-surface flex flex-col flex-1 md:flex-none min-h-0 ${selected ? 'hidden md:flex' : 'flex'}`}
       >
-        <div className="p-4 border-b border-slate-200 dark:border-slate-700">
-          <h1 className="text-xl font-extrabold text-slate-900 dark:text-white">Órdenes</h1>
-          <div className="mt-3 flex rounded-xl overflow-hidden border border-slate-200 dark:border-slate-700">
+        <div className="p-4 border-b border-border">
+          <h1 className="text-xl font-semibold text-foreground">Órdenes</h1>
+          <div className="mt-3 flex rounded-xl overflow-hidden border border-border">
             <button
               onClick={() => setTab('activas')}
-              className={`flex-1 py-2 text-xs font-semibold transition ${tab === 'activas' ? 'bg-sky-500 text-white' : 'text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'}`}
+              className={`flex-1 py-2 text-xs font-semibold transition-colors ${tab === 'activas' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-surface-raised'}`}
             >
               Activas · {ordenes.length}
             </button>
             <button
               onClick={() => setTab('historial')}
-              className={`flex-1 py-2 text-xs font-semibold transition ${tab === 'historial' ? 'bg-sky-500 text-white' : 'text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'}`}
+              className={`flex-1 py-2 text-xs font-semibold transition-colors ${tab === 'historial' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-surface-raised'}`}
             >
               {historial.length > 0 ? `Historial · ${historial.length}` : 'Historial'}
             </button>
@@ -290,11 +290,11 @@ export default function MeseroOrdenes() {
 
         {tab === 'activas' ? (
           loadingOrdenes ? (
-            <div className="p-8 text-center text-slate-400 dark:text-slate-500 text-sm">Cargando...</div>
+            <div className="p-8 text-center text-muted-foreground text-sm">Cargando...</div>
           ) : ordenes.length === 0 ? (
-            <div className="p-8 text-center text-slate-400 dark:text-slate-500 text-sm">Sin órdenes activas</div>
+            <div className="p-8 text-center text-muted-foreground text-sm">Sin órdenes activas</div>
           ) : (
-            <div className="divide-y divide-slate-200 dark:divide-slate-700 overflow-y-auto flex-1 scrollbar-hide pb-16 md:pb-0 min-h-0">
+            <div className="divide-y divide-border overflow-y-auto flex-1 scrollbar-hide pb-16 md:pb-0 min-h-0">
               {ordenes.map(o => (
                 <OrdenListItem key={o.id} o={o} selected={selected} onSelect={selectOrden} />
               ))}
@@ -303,11 +303,11 @@ export default function MeseroOrdenes() {
         ) : (
           <div className="flex flex-col overflow-y-auto flex-1 scrollbar-hide pb-16 md:pb-0 min-h-0">
             {historial.length === 0 && histLoading ? (
-              <div className="p-8 text-center text-slate-400 dark:text-slate-500 text-sm">Cargando...</div>
+              <div className="p-8 text-center text-muted-foreground text-sm">Cargando...</div>
             ) : historial.length === 0 ? (
-              <div className="p-8 text-center text-slate-400 dark:text-slate-500 text-sm">Sin órdenes en el historial</div>
+              <div className="p-8 text-center text-muted-foreground text-sm">Sin órdenes en el historial</div>
             ) : (
-              <div className="divide-y divide-slate-200 dark:divide-slate-700">
+              <div className="divide-y divide-border">
                 {historial.map(o => (
                   <OrdenListItem key={o.id} o={o} selected={selected} onSelect={selectOrden} />
                 ))}
@@ -317,7 +317,7 @@ export default function MeseroOrdenes() {
               <button
                 onClick={() => loadHistorial(histPage + 1, true)}
                 disabled={histLoading}
-                className="m-3 py-2.5 rounded-2xl border border-slate-200 dark:border-slate-700 text-xs font-semibold text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700 disabled:opacity-40 transition"
+                className="m-3 py-2.5 rounded-2xl border border-border text-xs font-semibold text-muted-foreground hover:bg-surface-raised disabled:opacity-40 transition-colors"
               >
                 {histLoading ? 'Cargando...' : 'Ver 20 más'}
               </button>
@@ -328,24 +328,24 @@ export default function MeseroOrdenes() {
 
       {/* Detail panel */}
       {selected ? (
-        <div className="flex-1 bg-white dark:bg-slate-900 flex flex-col overflow-hidden">
+        <div className="flex-1 bg-background flex flex-col overflow-hidden">
           <div className="flex-1 overflow-y-auto scrollbar-hide">
             {/* Detail header */}
-            <div className="bg-slate-100 dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 px-4 py-4 flex items-center justify-between">
+            <div className="bg-surface border-b border-border px-4 py-4 flex items-center justify-between">
               <div>
                 <button
                   onClick={() => detailHistoryPushed.current ? window.history.back() : setSelected(null)}
-                  className="md:hidden text-xs text-sky-400 mb-1"
+                  className="md:hidden text-xs text-primary mb-1"
                 >
                   ← Volver
                 </button>
                 <div className="flex items-center gap-2">
-                  <h2 className="font-extrabold text-slate-900 dark:text-white text-lg">
+                  <h2 className="font-semibold text-foreground text-lg">
                     {tipoLabel(selected.tipoOrden, selected.mesaNumero)}
                   </h2>
                   <button
                     onClick={() => setEditOrdenModal(true)}
-                    className="p-1 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-500 dark:text-slate-400 hover:text-sky-400 transition"
+                    className="p-1 rounded-lg hover:bg-surface-raised text-muted-foreground hover:text-primary transition-colors"
                   >
                     <Pencil size={13} />
                   </button>
@@ -353,24 +353,24 @@ export default function MeseroOrdenes() {
                 {(selected.nombreCliente || selected.telefonoCliente || selected.direccionEntrega) && (
                   <div className="mt-1 space-y-0.5">
                     {selected.nombreCliente && (
-                      <p className="text-xs text-slate-500 dark:text-slate-400 flex items-center gap-1">
+                      <p className="text-xs text-muted-foreground flex items-center gap-1">
                         <User size={10} />{selected.nombreCliente}
                       </p>
                     )}
                     {selected.telefonoCliente && (
-                      <p className="text-xs text-slate-500 dark:text-slate-400 flex items-center gap-1">
+                      <p className="text-xs text-muted-foreground flex items-center gap-1">
                         <Phone size={10} />{selected.telefonoCliente}
                       </p>
                     )}
                     {selected.direccionEntrega && (
-                      <p className="text-xs text-slate-500 dark:text-slate-400 flex items-center gap-1">
+                      <p className="text-xs text-muted-foreground flex items-center gap-1">
                         <MapPin size={10} />{selected.direccionEntrega}
                       </p>
                     )}
                   </div>
                 )}
                 {selected.pagada && (
-                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-500/20 text-emerald-400 mt-1">
+                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-success/20 text-success mt-1">
                     Pagada
                   </span>
                 )}
@@ -380,17 +380,18 @@ export default function MeseroOrdenes() {
                   <button
                     onClick={() => { setSplitMode(m => !m); setSplitSelected(new Set()) }}
                     title="Dividir orden"
-                    className={`p-2 rounded-2xl border text-xs font-semibold transition ${splitMode ? 'bg-amber-500/20 border-amber-500/40 text-amber-400' : 'border-slate-300 dark:border-slate-600 text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'}`}
+                    className={`p-2 rounded-2xl border text-xs font-semibold transition-colors ${splitMode ? 'bg-warning/20 border-warning/40 text-warning' : 'border-border text-muted-foreground hover:bg-surface-raised'}`}
                   >
                     <Copy size={14} />
                   </button>
                 )}
                 {!splitMode && (() => {
-                  const { label, cls } = ESTADO_INFO[selected.estado] ?? ESTADO_INFO.ABIERTA
+                  const cls = ESTADO_CLS[selected.estado] ?? ESTADO_CLS.ABIERTA
+                  const label = ESTADO_LABEL[selected.estado] ?? selected.estado
                   return (
                     <button
                       onClick={() => setEstadoModal(true)}
-                      className={`px-3 py-2 rounded-2xl border text-xs font-semibold transition ${cls}`}
+                      className={`px-3 py-2 rounded-2xl border text-xs font-semibold transition-colors ${cls}`}
                     >
                       {label}
                     </button>
@@ -399,7 +400,7 @@ export default function MeseroOrdenes() {
                 {!splitMode && (
                   <button
                     onClick={() => setPayModal(true)}
-                    className="px-3 py-2 rounded-2xl bg-green-500 text-white text-xs font-semibold hover:bg-green-600 transition flex items-center gap-1"
+                    className="px-3 py-2 rounded-2xl bg-success text-white text-xs font-semibold hover:opacity-90 transition-colors flex items-center gap-1"
                   >
                     <CreditCard size={13} /> Cobrar
                   </button>
@@ -407,7 +408,7 @@ export default function MeseroOrdenes() {
                 {!splitMode && !selected.pagada && (
                   <button
                     onClick={() => setConfirmDel(selected.id)}
-                    className="p-2 rounded-2xl hover:bg-red-500/10 text-red-400 transition"
+                    className="p-2 rounded-2xl hover:bg-destructive/10 text-destructive transition-colors"
                   >
                     <Trash2 size={16} />
                   </button>
@@ -416,7 +417,7 @@ export default function MeseroOrdenes() {
             </div>
 
             {splitMode && (
-              <div className="mx-4 mt-3 mb-0 px-3 py-2 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-400 text-xs font-medium flex items-center gap-2">
+              <div className="mx-4 mt-3 mb-0 px-3 py-2 rounded-2xl bg-warning/10 border border-warning/30 text-warning text-xs font-medium flex items-center gap-2">
                 <Copy size={12} />
                 Selecciona los productos que quieres mover a una nueva orden
               </div>
@@ -441,35 +442,35 @@ export default function MeseroOrdenes() {
                   <div
                     key={cardKey}
                     onClick={splitMode ? () => toggleSplitCard(cardKey) : undefined}
-                    className={`relative bg-slate-100 dark:bg-slate-800 rounded-2xl p-3.5 shadow-sm border flex items-start gap-3 transition
+                    className={`relative bg-surface rounded-2xl p-3.5 shadow-sm border flex items-start gap-3 transition-colors
                       ${splitMode ? 'cursor-pointer' : ''}
-                      ${splitMode && isCardSelected ? 'border-amber-500 bg-amber-500/10' : 'border-slate-200 dark:border-slate-700'}
+                      ${splitMode && isCardSelected ? 'border-warning bg-warning/10' : 'border-border'}
                     `}
                   >
                     {splitMode && (
                       <div
-                        className={`absolute top-2.5 right-2.5 w-5 h-5 rounded-full border-2 flex items-center justify-center transition flex-shrink-0 ${isCardSelected ? 'bg-amber-500 border-amber-500' : 'border-slate-300 dark:border-slate-600'}`}
+                        className={`absolute top-2.5 right-2.5 w-5 h-5 rounded-full border-2 flex items-center justify-center transition-colors flex-shrink-0 ${isCardSelected ? 'bg-warning border-warning' : 'border-border'}`}
                       >
-                        {isCardSelected && <Check size={10} className="text-white" />}
+                        {isCardSelected && <Check size={10} className="text-black" />}
                       </div>
                     )}
                     {item.productoImagenUrl ? (
                       <img src={item.productoImagenUrl} className="w-12 h-12 rounded-xl object-cover flex-shrink-0" alt="" />
                     ) : (
-                      <div className="w-12 h-12 rounded-xl bg-slate-200 dark:bg-slate-700 flex items-center justify-center flex-shrink-0">
-                        <Package size={18} className="text-slate-400 dark:text-slate-500" />
+                      <div className="w-12 h-12 rounded-xl bg-surface-sunken flex items-center justify-center flex-shrink-0">
+                        <Package size={18} className="text-muted-foreground" />
                       </div>
                     )}
                     <div className="flex-1 min-w-0">
-                      <p className="font-bold text-slate-900 dark:text-white text-sm">{item.productoNombre}</p>
-                      <p className="text-xs text-slate-500 dark:text-slate-400">${fmt(precioUnit)}</p>
+                      <p className="font-bold text-foreground text-sm">{item.productoNombre}</p>
+                      <p className="text-xs text-muted-foreground">${fmt(precioUnit)}</p>
                       {item.notas && (
-                        <p className="text-xs text-orange-400 mt-0.5 italic">{item.notas}</p>
+                        <p className="text-xs text-warning mt-0.5 italic">{item.notas}</p>
                       )}
                       {item.ingredientes?.length > 0 && (
                         <div className="flex flex-wrap gap-1 mt-1">
                           {item.ingredientes.map(ing => (
-                            <span key={ing.id} className="text-[10px] bg-emerald-900/50 text-emerald-400 px-2 py-0.5 rounded-full">
+                            <span key={ing.id} className="text-[10px] bg-success/15 text-success px-2 py-0.5 rounded-full">
                               {ing.cantidad > 1 ? `${ing.cantidad}x ` : '+'}{ing.ingredienteNombre}
                             </span>
                           ))}
@@ -480,14 +481,14 @@ export default function MeseroOrdenes() {
                       <div className="flex gap-0.5 flex-shrink-0">
                         <button
                           onClick={() => handleEditItem(item)}
-                          className="p-1.5 rounded-xl hover:bg-sky-500/10 text-sky-400 transition"
+                          className="p-1.5 rounded-xl hover:bg-info/10 text-info transition-colors"
                         >
                           <Pencil size={13} />
                         </button>
                         {!selected.pagada && (
                           <button
                             onClick={() => setConfirmRemoveItem(item)}
-                            className="p-1.5 rounded-xl hover:bg-red-500/10 text-red-400 transition"
+                            className="p-1.5 rounded-xl hover:bg-destructive/10 text-destructive transition-colors"
                           >
                             <X size={14} />
                           </button>
@@ -505,14 +506,14 @@ export default function MeseroOrdenes() {
                 <div className="flex gap-2">
                   <button
                     onClick={() => { setSplitMode(false); setSplitSelected(new Set()) }}
-                    className="flex-1 py-3.5 rounded-2xl border border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 text-sm font-semibold hover:bg-slate-200 dark:hover:bg-slate-700 transition"
+                    className="flex-1 py-3.5 rounded-2xl border border-border text-muted-foreground text-sm font-semibold hover:bg-surface-raised transition-colors"
                   >
                     Cancelar
                   </button>
                   <button
                     onClick={handleSplit}
                     disabled={splitSelected.size === 0 || splitting}
-                    className="flex-1 flex items-center justify-center gap-2 py-3.5 rounded-2xl bg-amber-500 text-white text-sm font-semibold hover:bg-amber-600 disabled:opacity-40 transition"
+                    className="flex-1 flex items-center justify-center gap-2 py-3.5 rounded-2xl bg-warning text-black text-sm font-semibold hover:opacity-90 disabled:opacity-40 transition-colors"
                   >
                     <Copy size={14} />
                     {splitting ? 'Dividiendo...' : `Mover (${splitSelected.size})`}
@@ -521,7 +522,7 @@ export default function MeseroOrdenes() {
               ) : (
                 <button
                   onClick={() => selected.pagada ? setConfirmAddToPaid(true) : setAddModal(true)}
-                  className="w-full flex items-center justify-center gap-2 py-3.5 rounded-2xl border-2 border-dashed border-sky-700 text-sky-400 text-sm font-semibold hover:bg-sky-500/10 transition"
+                  className="w-full flex items-center justify-center gap-2 py-3.5 rounded-2xl border-2 border-dashed border-primary text-primary text-sm font-semibold hover:bg-primary/10 transition-colors"
                 >
                   <Plus size={16} /> Agregar producto
                 </button>
@@ -529,18 +530,18 @@ export default function MeseroOrdenes() {
             </div>
 
             {/* Payment summary */}
-            <div className="mx-4 mb-6 bg-slate-100 dark:bg-slate-800 rounded-3xl p-4 shadow-sm border border-slate-200 dark:border-slate-700">
-              <div className="flex justify-between text-sm text-slate-600 dark:text-slate-300 mb-1">
+            <div className="mx-4 mb-6 bg-surface rounded-3xl p-4 shadow-sm border border-border">
+              <div className="flex justify-between text-sm text-muted-foreground mb-1">
                 <span>Subtotal</span>
                 <span>${fmt(selected.totalMonto)}</span>
               </div>
               {selected.pagos?.map((p, i) => (
-                <div key={i} className="flex justify-between text-xs text-emerald-500 mb-0.5">
+                <div key={i} className="flex justify-between text-xs text-success mb-0.5">
                   <span>Pago ({METODO_LABEL[p.metodoPago]})</span>
                   <span>-${fmt(p.montoPagado)}</span>
                 </div>
               ))}
-              <div className="border-t border-slate-200 dark:border-slate-700 mt-2 pt-2 flex justify-between font-extrabold text-slate-900 dark:text-white">
+              <div className="border-t border-border mt-2 pt-2 flex justify-between font-bold text-foreground">
                 <span>Total</span>
                 <span>
                   ${fmt(Math.max(0, selected.totalMonto - (selected.pagos?.reduce((s, p) => s + p.montoPagado, 0) ?? 0)))}
@@ -550,7 +551,7 @@ export default function MeseroOrdenes() {
           </div>
         </div>
       ) : (
-        <div className="hidden md:flex flex-1 items-center justify-center text-slate-400 dark:text-slate-500 text-sm">
+        <div className="hidden md:flex flex-1 items-center justify-center text-muted-foreground text-sm">
           Selecciona una orden
         </div>
       )}
@@ -563,7 +564,7 @@ export default function MeseroOrdenes() {
             onClose={() => setAddModal(false)}
             ordenId={selected.id}
             onDone={updated => { setSelected(updated); setAddModal(false); syncOrden(updated) }}
-            onError={msg => setToast({ msg, type: 'error' })}
+            onError={msg => toast.error(msg)}
           />
 
           <PagarModal
@@ -572,7 +573,7 @@ export default function MeseroOrdenes() {
             orden={selected}
             onDone={updated => {
               setPayModal(false)
-              setToast({ msg: 'Pago registrado', type: 'success' })
+              toast.success('Pago registrado')
               if (isClosed(updated)) {
                 setSelected(null)
                 invalidateOrdenes()
@@ -586,7 +587,7 @@ export default function MeseroOrdenes() {
                 invalidateMesas()
               }
             }}
-            onError={msg => setToast({ msg, type: 'error' })}
+            onError={msg => toast.error(msg)}
           />
 
           <EstadoModal
@@ -595,7 +596,7 @@ export default function MeseroOrdenes() {
             orden={selected}
             onDone={updated => {
               setEstadoModal(false)
-              setToast({ msg: 'Estado actualizado', type: 'success' })
+              toast.success('Estado actualizado')
               if (isClosed(updated)) {
                 setSelected(null)
                 invalidateOrdenes()
@@ -608,7 +609,7 @@ export default function MeseroOrdenes() {
                 invalidateOrdenes()
               }
             }}
-            onError={msg => setToast({ msg, type: 'error' })}
+            onError={msg => toast.error(msg)}
           />
 
           <EditItemModal
@@ -620,9 +621,9 @@ export default function MeseroOrdenes() {
               setSelected(updated)
               setEditModal(false)
               syncOrden(updated)
-              setToast({ msg: 'Item actualizado', type: 'success' })
+              toast.success('Item actualizado')
             }}
-            onError={msg => setToast({ msg, type: 'error' })}
+            onError={msg => toast.error(msg)}
           />
 
           <EditOrdenModal
@@ -634,9 +635,9 @@ export default function MeseroOrdenes() {
               setEditOrdenModal(false)
               syncOrden(updated)
               invalidateMesas()
-              setToast({ msg: 'Orden actualizada', type: 'success' })
+              toast.success('Orden actualizada')
             }}
-            onError={msg => setToast({ msg, type: 'error' })}
+            onError={msg => toast.error(msg)}
           />
         </>
       )}
@@ -693,24 +694,24 @@ function OrdenListItem({
   return (
     <button
       onClick={() => onSelect(o.id)}
-      className={`w-full px-4 py-3.5 flex items-center justify-between text-left hover:bg-slate-200 dark:hover:bg-slate-700 transition ${selected?.id === o.id ? 'bg-sky-500/10 border-r-2 border-sky-500' : ''}`}
+      className={`w-full px-4 py-3.5 flex items-center justify-between text-left hover:bg-surface-raised transition-colors cursor-pointer ${selected?.id === o.id ? 'bg-primary/10 border-r-2 border-primary' : ''}`}
     >
       <div>
-        <p className="font-bold text-slate-900 dark:text-white text-sm">
+        <p className="font-bold text-foreground text-sm">
           {o.tipoOrden === 'MESA'
             ? `Mesa ${o.mesaNumero}`
             : o.tipoOrden === 'PARA_LLEVAR'
               ? 'Para llevar'
               : 'Domicilio'}
         </p>
-        <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+        <p className="text-xs text-muted-foreground mt-0.5">
           ${fmt(o.totalMonto)} · {o.items?.length || 0} items
         </p>
         <div className="mt-1.5">
           <StatusBadge estado={o.estado} pagada={o.pagada} />
         </div>
       </div>
-      <ChevronRight size={14} className="text-slate-300 dark:text-slate-600 flex-shrink-0" />
+      <ChevronRight size={14} className="text-muted-foreground flex-shrink-0" />
     </button>
   )
 }
@@ -783,7 +784,7 @@ function AddItemModal({
               if (grupo.length === 0) return null
               return (
                 <div key={tipo}>
-                  <p className={`text-[10px] font-bold uppercase tracking-wider mb-1.5 px-1 ${tipo === 'PLATO_PREPARADO' ? 'text-orange-400' : 'text-sky-400'}`}>
+                  <p className={`text-[10px] font-bold uppercase tracking-wider mb-1.5 px-1 ${tipo === 'PLATO_PREPARADO' ? 'text-warning' : 'text-info'}`}>
                     {tipo === 'PLATO_PREPARADO' ? 'Platos preparados' : 'Venta directa'}
                   </p>
                   <div className="grid grid-cols-2 gap-2">
@@ -791,20 +792,20 @@ function AddItemModal({
                       <button
                         key={p.id}
                         onClick={() => setSelectedProduct(p)}
-                        className={`flex items-center gap-2 p-2.5 rounded-2xl border text-left transition ${selectedProduct?.id === p.id ? 'border-sky-500 bg-sky-500/10' : 'border-slate-200 dark:border-slate-700 bg-slate-200 dark:bg-slate-700 hover:border-sky-600'}`}
+                        className={`flex items-center gap-2 p-2.5 rounded-2xl border text-left transition-colors ${selectedProduct?.id === p.id ? 'border-primary bg-primary/10' : 'border-border bg-surface hover:border-primary'}`}
                       >
                         {p.imagenUrl ? (
                           <img src={p.imagenUrl} className="w-9 h-9 rounded-xl object-cover flex-shrink-0" alt="" />
                         ) : (
-                          <div className="w-9 h-9 rounded-xl bg-slate-300 dark:bg-slate-600 flex items-center justify-center flex-shrink-0">
+                          <div className="w-9 h-9 rounded-xl bg-surface-sunken flex items-center justify-center flex-shrink-0">
                             <Package size={14} className="text-slate-500 dark:text-slate-400" />
                           </div>
                         )}
                         <div className="min-w-0">
-                          <p className="text-xs font-bold text-slate-900 dark:text-white truncate">{p.nombre}</p>
-                          <p className="text-xs text-slate-500 dark:text-slate-400">${fmt(p.precio)}</p>
+                          <p className="text-xs font-bold text-foreground truncate">{p.nombre}</p>
+                          <p className="text-xs text-muted-foreground">${fmt(p.precio)}</p>
                         </div>
-                        {selectedProduct?.id === p.id && <Check size={12} className="text-sky-400 ml-auto flex-shrink-0" />}
+                        {selectedProduct?.id === p.id && <Check size={12} className="text-primary ml-auto flex-shrink-0" />}
                       </button>
                     ))}
                   </div>
@@ -817,18 +818,18 @@ function AddItemModal({
         {selectedProduct && (
           <>
             <div className="flex items-center gap-3">
-              <label className="text-sm font-medium text-slate-600 dark:text-slate-300">Cantidad</label>
+              <label className="text-sm font-medium text-foreground">Cantidad</label>
               <div className="flex items-center gap-2 ml-auto">
-                <button onClick={() => setCantidad(c => Math.max(1, c - 1))} className="w-8 h-8 rounded-full border border-slate-300 dark:border-slate-600 text-slate-600 dark:text-slate-300 flex items-center justify-center font-bold">-</button>
-                <span className="font-bold text-slate-900 dark:text-white w-6 text-center">{cantidad}</span>
-                <button onClick={() => setCantidad(c => c + 1)} className="w-8 h-8 rounded-full bg-sky-500 text-white flex items-center justify-center font-bold">+</button>
+                <button onClick={() => setCantidad(c => Math.max(1, c - 1))} className="w-8 h-8 rounded-full border border-border text-foreground flex items-center justify-center font-bold">-</button>
+                <span className="font-bold text-foreground w-6 text-center">{cantidad}</span>
+                <button onClick={() => setCantidad(c => c + 1)} className="w-8 h-8 rounded-full bg-primary text-primary-foreground flex items-center justify-center font-bold">+</button>
               </div>
             </div>
 
             <div>
-              <label className="text-sm font-medium text-slate-600 dark:text-slate-300">Notas</label>
+              <label className="text-sm font-medium text-foreground">Notas</label>
               <input
-                className="mt-1 w-full bg-slate-200 dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-xl px-3 py-2.5 text-sm text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-sky-400"
+                className="mt-1 w-full bg-surface-sunken border border-input rounded-xl px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
                 placeholder="Instrucciones para este producto..."
                 value={notas}
                 onChange={e => setNotas(e.target.value)}
@@ -837,7 +838,7 @@ function AddItemModal({
 
             {ingredientes.length > 0 && selectedProduct.tipo === 'PLATO_PREPARADO' && (
               <div>
-                <p className="text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-2">Extras / ingredientes</p>
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Extras / ingredientes</p>
                 <div className="flex flex-wrap gap-2">
                   {ingredientes.map((ing: Ingrediente) => {
                     const isSelected = (extras[ing.id] || 0) > 0
@@ -849,7 +850,7 @@ function AddItemModal({
                             ? setExtras(prev => { const copy = { ...prev }; delete copy[ing.id]; return copy })
                             : setExtras(prev => ({ ...prev, [ing.id]: 1 }))
                         }
-                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border transition ${isSelected ? 'bg-emerald-500 border-emerald-500 text-white' : 'border-slate-300 dark:border-slate-600 text-slate-500 dark:text-slate-400 hover:border-emerald-500'}`}
+                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ${isSelected ? 'bg-success border-success text-white' : 'border-border text-muted-foreground hover:border-success'}`}
                       >
                         {ing.imagenUrl ? (
                           <img src={ing.imagenUrl} className="w-4 h-4 rounded-full object-cover" alt="" />
@@ -864,12 +865,12 @@ function AddItemModal({
                 {Object.keys(extras).length > 0 && (
                   <div className="mt-2 space-y-1.5">
                     {ingredientes.filter((ing: Ingrediente) => (extras[ing.id] || 0) > 0).map((ing: Ingrediente) => (
-                      <div key={ing.id} className="flex items-center gap-2 px-3 py-1.5 rounded-2xl bg-emerald-900/40">
-                        <span className="text-xs text-emerald-300 font-medium flex-1 truncate">{ing.nombre}</span>
+                      <div key={ing.id} className="flex items-center gap-2 px-3 py-1.5 rounded-2xl bg-success/15">
+                        <span className="text-xs text-success font-medium flex-1 truncate">{ing.nombre}</span>
                         <div className="flex items-center gap-1 flex-shrink-0">
-                          <button onClick={() => setIngCantidad(ing.id, -1)} className="w-6 h-6 rounded-full border border-emerald-700 bg-slate-200 dark:bg-slate-700 text-emerald-400 flex items-center justify-center text-xs font-bold">-</button>
-                          <span className="w-5 text-center text-xs font-bold text-emerald-300">{extras[ing.id]}</span>
-                          <button onClick={() => setIngCantidad(ing.id, 1)} className="w-6 h-6 rounded-full bg-emerald-500 text-white flex items-center justify-center text-xs font-bold">+</button>
+                          <button onClick={() => setIngCantidad(ing.id, -1)} className="w-6 h-6 rounded-full border border-success/40 bg-surface text-success flex items-center justify-center text-xs font-bold">-</button>
+                          <span className="w-5 text-center text-xs font-bold text-success">{extras[ing.id]}</span>
+                          <button onClick={() => setIngCantidad(ing.id, 1)} className="w-6 h-6 rounded-full bg-success text-white flex items-center justify-center text-xs font-bold">+</button>
                         </div>
                       </div>
                     ))}
@@ -883,7 +884,7 @@ function AddItemModal({
         <button
           onClick={handleAdd}
           disabled={!selectedProduct || saving}
-          className="w-full bg-sky-500 hover:bg-sky-600 disabled:opacity-40 text-white py-3 rounded-2xl font-semibold text-sm transition"
+          className="w-full bg-primary hover:opacity-90 disabled:opacity-40 text-primary-foreground py-3 rounded-2xl font-semibold text-sm transition-colors"
         >
           {saving ? 'Agregando...' : 'Agregar a la orden'}
         </button>
@@ -940,13 +941,13 @@ function PagarModal({
     <Modal open={open} onClose={onClose} title="Registrar pago" size="sm">
       <div className="space-y-4">
         <div>
-          <label className="text-sm font-medium text-slate-600 dark:text-slate-300">Método de pago</label>
+          <label className="text-sm font-medium text-foreground">Método de pago</label>
           <div className="mt-1 flex gap-2 flex-wrap">
             {METODOS.map(m => (
               <button
                 key={m}
                 onClick={() => setMetodo(m)}
-                className={`flex-1 py-2.5 rounded-xl text-xs font-semibold border transition ${metodo === m ? 'bg-green-500 border-green-500 text-white' : 'border-slate-300 dark:border-slate-600 text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'}`}
+                className={`flex-1 py-2.5 rounded-xl text-xs font-semibold border transition-colors ${metodo === m ? 'bg-success border-success text-white' : 'border-border text-muted-foreground hover:bg-surface-raised'}`}
               >
                 {METODO_LABEL[m]}
               </button>
@@ -954,42 +955,42 @@ function PagarModal({
           </div>
         </div>
         <div>
-          <label className="text-sm font-medium text-slate-600 dark:text-slate-300">Monto pagado</label>
+          <label className="text-sm font-medium text-foreground">Monto pagado</label>
           <input
             type="number"
             step="0.01"
-            className="mt-1 w-full bg-slate-200 dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-xl px-3 py-2.5 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-green-400 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+            className="mt-1 w-full bg-surface-sunken border border-input rounded-xl px-3 py-2.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
             value={monto}
             onChange={e => setMonto(e.target.value)}
           />
         </div>
         <div>
-          <label className="text-sm font-medium text-slate-600 dark:text-slate-300">Propina</label>
+          <label className="text-sm font-medium text-foreground">Propina</label>
           <input
             type="number"
             step="0.01"
             min="0"
-            className="mt-1 w-full bg-slate-200 dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-xl px-3 py-2.5 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-green-400 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+            className="mt-1 w-full bg-surface-sunken border border-input rounded-xl px-3 py-2.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
             value={propina}
             onChange={e => setPropina(e.target.value)}
           />
         </div>
-        <div className="bg-slate-200 dark:bg-slate-700 rounded-2xl p-3 text-sm">
-          <div className="flex justify-between text-slate-600 dark:text-slate-300">
+        <div className="bg-surface rounded-2xl p-3 text-sm">
+          <div className="flex justify-between text-foreground">
             <span>Total orden</span>
             <span className="font-bold">${fmt(orden?.totalMonto)}</span>
           </div>
           {yaPagado > 0 && (
-            <div className="flex justify-between text-emerald-400 mt-1">
+            <div className="flex justify-between text-success mt-1">
               <span>Ya pagado</span>
               <span>-${fmt(yaPagado)}</span>
             </div>
           )}
-          <div className="flex justify-between text-slate-500 dark:text-slate-400 mt-1">
+          <div className="flex justify-between text-muted-foreground mt-1">
             <span>Propina</span>
             <span>${fmt(parseFloat(String(propina)) || 0)}</span>
           </div>
-          <div className="flex justify-between font-extrabold text-slate-900 dark:text-white mt-2 pt-2 border-t border-slate-300 dark:border-slate-600">
+          <div className="flex justify-between font-bold text-foreground mt-2 pt-2 border-t border-border">
             <span>Total a cobrar</span>
             <span>${fmt(restante + (parseFloat(String(propina)) || 0))}</span>
           </div>
@@ -997,7 +998,7 @@ function PagarModal({
         <button
           onClick={handlePagar}
           disabled={saving || !monto}
-          className="w-full bg-green-500 hover:bg-green-600 disabled:opacity-50 text-white py-3 rounded-2xl font-semibold text-sm transition"
+          className="w-full bg-success hover:opacity-90 disabled:opacity-50 text-white py-3 rounded-2xl font-semibold text-sm transition-colors"
         >
           {saving ? 'Procesando...' : 'Confirmar pago'}
         </button>
@@ -1076,33 +1077,33 @@ function EditItemModal({
   return (
     <Modal open={open} onClose={onClose} title="Editar producto" size="lg">
       <div className="space-y-4">
-        <div className="flex items-center gap-3 p-3 bg-slate-200 dark:bg-slate-700 rounded-2xl">
+        <div className="flex items-center gap-3 p-3 bg-surface rounded-2xl">
           {item.productoImagenUrl ? (
             <img src={item.productoImagenUrl} className="w-12 h-12 rounded-xl object-cover flex-shrink-0" alt="" />
           ) : (
-            <div className="w-12 h-12 rounded-xl bg-slate-300 dark:bg-slate-600 flex items-center justify-center flex-shrink-0">
-              <Package size={18} className="text-slate-500 dark:text-slate-400" />
+            <div className="w-12 h-12 rounded-xl bg-surface-sunken flex items-center justify-center flex-shrink-0">
+              <Package size={18} className="text-muted-foreground" />
             </div>
           )}
           <div>
-            <p className="font-bold text-slate-900 dark:text-white text-sm">{item.productoNombre}</p>
-            <p className="text-xs text-slate-500 dark:text-slate-400">${fmt(item.precioUnitario)}/ud</p>
+            <p className="font-bold text-foreground text-sm">{item.productoNombre}</p>
+            <p className="text-xs text-muted-foreground">${fmt(item.precioUnitario)}/ud</p>
           </div>
         </div>
 
         <div className="flex items-center gap-3">
-          <label className="text-sm font-medium text-slate-600 dark:text-slate-300">Cantidad</label>
+          <label className="text-sm font-medium text-foreground">Cantidad</label>
           <div className="flex items-center gap-2 ml-auto">
-            <button onClick={() => setCantidad(c => Math.max(1, c - 1))} className="w-8 h-8 rounded-full border border-slate-300 dark:border-slate-600 text-slate-600 dark:text-slate-300 flex items-center justify-center font-bold">-</button>
-            <span className="font-bold text-slate-900 dark:text-white w-6 text-center">{cantidad}</span>
-            <button onClick={() => setCantidad(c => c + 1)} className="w-8 h-8 rounded-full bg-sky-500 text-white flex items-center justify-center font-bold">+</button>
+            <button onClick={() => setCantidad(c => Math.max(1, c - 1))} className="w-8 h-8 rounded-full border border-border text-foreground flex items-center justify-center font-bold">-</button>
+            <span className="font-bold text-foreground w-6 text-center">{cantidad}</span>
+            <button onClick={() => setCantidad(c => c + 1)} className="w-8 h-8 rounded-full bg-primary text-primary-foreground flex items-center justify-center font-bold">+</button>
           </div>
         </div>
 
         <div>
-          <label className="text-sm font-medium text-slate-600 dark:text-slate-300">Notas</label>
+          <label className="text-sm font-medium text-foreground">Notas</label>
           <input
-            className="mt-1 w-full bg-slate-200 dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-xl px-3 py-2.5 text-sm text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-sky-400"
+            className="mt-1 w-full bg-surface-sunken border border-input rounded-xl px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
             placeholder="Instrucciones para este producto..."
             value={notas}
             onChange={e => setNotas(e.target.value)}
@@ -1111,7 +1112,7 @@ function EditItemModal({
 
         {productTipo === 'PLATO_PREPARADO' && todosIngredientes.length > 0 && (
           <div>
-            <p className="text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-2">Extras / ingredientes</p>
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Extras / ingredientes</p>
             <div className="flex flex-wrap gap-2">
               {todosIngredientes.map((ing: Ingrediente) => {
                 const isSelected = (extras[ing.id] || 0) > 0
@@ -1123,7 +1124,7 @@ function EditItemModal({
                         ? setExtras(prev => { const copy = { ...prev }; delete copy[ing.id]; return copy })
                         : setExtras(prev => ({ ...prev, [ing.id]: 1 }))
                     }
-                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border transition ${isSelected ? 'bg-emerald-500 border-emerald-500 text-white' : 'border-slate-300 dark:border-slate-600 text-slate-500 dark:text-slate-400 hover:border-emerald-500'}`}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ${isSelected ? 'bg-success border-success text-white' : 'border-border text-muted-foreground hover:border-success'}`}
                   >
                     {ing.imagenUrl ? (
                       <img src={ing.imagenUrl} className="w-4 h-4 rounded-full object-cover" alt="" />
@@ -1138,12 +1139,12 @@ function EditItemModal({
             {Object.keys(extras).length > 0 && (
               <div className="mt-2 space-y-1.5">
                 {todosIngredientes.filter((ing: Ingrediente) => (extras[ing.id] || 0) > 0).map((ing: Ingrediente) => (
-                  <div key={ing.id} className="flex items-center gap-2 px-3 py-1.5 rounded-2xl bg-emerald-900/40">
-                    <span className="text-xs text-emerald-300 font-medium flex-1 truncate">{ing.nombre}</span>
+                  <div key={ing.id} className="flex items-center gap-2 px-3 py-1.5 rounded-2xl bg-success/15">
+                    <span className="text-xs text-success font-medium flex-1 truncate">{ing.nombre}</span>
                     <div className="flex items-center gap-1 flex-shrink-0">
-                      <button onClick={() => setIngCantidad(ing.id, -1)} className="w-6 h-6 rounded-full border border-emerald-700 bg-slate-200 dark:bg-slate-700 text-emerald-400 flex items-center justify-center text-xs font-bold">-</button>
-                      <span className="w-5 text-center text-xs font-bold text-emerald-300">{extras[ing.id]}</span>
-                      <button onClick={() => setIngCantidad(ing.id, 1)} className="w-6 h-6 rounded-full bg-emerald-500 text-white flex items-center justify-center text-xs font-bold">+</button>
+                      <button onClick={() => setIngCantidad(ing.id, -1)} className="w-6 h-6 rounded-full border border-success/40 bg-surface text-success flex items-center justify-center text-xs font-bold">-</button>
+                      <span className="w-5 text-center text-xs font-bold text-success">{extras[ing.id]}</span>
+                      <button onClick={() => setIngCantidad(ing.id, 1)} className="w-6 h-6 rounded-full bg-success text-white flex items-center justify-center text-xs font-bold">+</button>
                     </div>
                   </div>
                 ))}
@@ -1155,7 +1156,7 @@ function EditItemModal({
         <button
           onClick={handleSave}
           disabled={saving}
-          className="w-full bg-sky-500 hover:bg-sky-600 disabled:opacity-40 text-white py-3 rounded-2xl font-semibold text-sm transition"
+          className="w-full bg-primary hover:opacity-90 disabled:opacity-40 text-primary-foreground py-3 rounded-2xl font-semibold text-sm transition-colors"
         >
           {saving ? 'Guardando...' : 'Guardar cambios'}
         </button>
@@ -1226,13 +1227,13 @@ function EditOrdenModal({
     <Modal open={open} onClose={onClose} title="Editar orden" size="sm">
       <div className="space-y-4">
         <div>
-          <label className="text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Tipo de orden</label>
+          <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Tipo de orden</label>
           <div className="mt-2 flex gap-2">
             {TIPOS.map(t => (
               <button
                 key={t.value}
                 onClick={() => setTipo(t.value)}
-                className={`flex-1 py-2.5 rounded-xl text-xs font-semibold border transition ${tipo === t.value ? 'bg-sky-500 border-sky-500 text-white' : 'border-slate-300 dark:border-slate-600 text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'}`}
+                className={`flex-1 py-2.5 rounded-xl text-xs font-semibold border transition-colors ${tipo === t.value ? 'bg-primary border-primary text-primary-foreground' : 'border-border text-muted-foreground hover:bg-surface-raised'}`}
               >
                 {t.label}
               </button>
@@ -1242,11 +1243,11 @@ function EditOrdenModal({
 
         {tipo === 'MESA' && (
           <div>
-            <label className="text-sm font-medium text-slate-600 dark:text-slate-300">Mesa</label>
+            <label className="text-sm font-medium text-foreground">Mesa</label>
             <select
               value={mesaId}
               onChange={e => setMesaId(e.target.value)}
-              className="mt-1 w-full bg-slate-200 dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-xl px-3 py-2.5 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-sky-400"
+              className="mt-1 w-full bg-surface-sunken border border-input rounded-xl px-3 py-2.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
             >
               <option value="">Seleccionar mesa</option>
               {mesas.map(m => (
@@ -1259,18 +1260,18 @@ function EditOrdenModal({
         {(tipo === 'PARA_LLEVAR' || tipo === 'DOMICILIO') && (
           <>
             <div>
-              <label className="text-sm font-medium text-slate-600 dark:text-slate-300">Nombre del cliente</label>
+              <label className="text-sm font-medium text-foreground">Nombre del cliente</label>
               <input
-                className="mt-1 w-full bg-slate-200 dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-xl px-3 py-2.5 text-sm text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-sky-400"
+                className="mt-1 w-full bg-surface-sunken border border-input rounded-xl px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
                 placeholder="Nombre..."
                 value={nombre}
                 onChange={e => setNombre(e.target.value)}
               />
             </div>
             <div>
-              <label className="text-sm font-medium text-slate-600 dark:text-slate-300">Teléfono</label>
+              <label className="text-sm font-medium text-foreground">Teléfono</label>
               <input
-                className="mt-1 w-full bg-slate-200 dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-xl px-3 py-2.5 text-sm text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-sky-400"
+                className="mt-1 w-full bg-surface-sunken border border-input rounded-xl px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
                 placeholder="Teléfono..."
                 value={telefono}
                 onChange={e => setTelefono(e.target.value)}
@@ -1281,9 +1282,9 @@ function EditOrdenModal({
 
         {tipo === 'DOMICILIO' && (
           <div>
-            <label className="text-sm font-medium text-slate-600 dark:text-slate-300">Dirección de entrega</label>
+            <label className="text-sm font-medium text-foreground">Dirección de entrega</label>
             <input
-              className="mt-1 w-full bg-slate-200 dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-xl px-3 py-2.5 text-sm text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-sky-400"
+              className="mt-1 w-full bg-surface-sunken border border-input rounded-xl px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
               placeholder="Dirección..."
               value={direccion}
               onChange={e => setDireccion(e.target.value)}
@@ -1294,7 +1295,7 @@ function EditOrdenModal({
         <button
           onClick={handleSave}
           disabled={saving || (tipo === 'MESA' && !mesaId)}
-          className="w-full bg-sky-500 hover:bg-sky-600 disabled:opacity-40 text-white py-3 rounded-2xl font-semibold text-sm transition"
+          className="w-full bg-primary hover:opacity-90 disabled:opacity-40 text-primary-foreground py-3 rounded-2xl font-semibold text-sm transition-colors"
         >
           {saving ? 'Guardando...' : 'Guardar cambios'}
         </button>
@@ -1346,13 +1347,14 @@ function EstadoModal({
     <Modal open={open} onClose={onClose} title="Cambiar estado" size="sm">
       <div className="space-y-3">
         {estadosSinCancelar.map(e => {
-          const { label, cls } = ESTADO_INFO[e]
+          const cls = ESTADO_CLS[e] ?? ESTADO_CLS.ABIERTA
+          const label = ESTADO_LABEL[e] ?? e
           const isSelected = estado === e
           return (
             <button
               key={e}
               onClick={() => setEstado(e)}
-              className={`w-full flex items-center justify-between px-4 py-3 rounded-2xl border text-sm font-medium transition ${isSelected ? cls : 'border-slate-200 dark:border-slate-700 text-slate-400 dark:text-slate-500 hover:bg-slate-200 dark:hover:bg-slate-700'}`}
+              className={`w-full flex items-center justify-between px-4 py-3 rounded-2xl border text-sm font-medium transition-colors ${isSelected ? cls : 'border-border text-muted-foreground hover:bg-surface-raised'}`}
             >
               {label}
               {isSelected && <Check size={16} />}
@@ -1360,14 +1362,15 @@ function EstadoModal({
           )
         })}
 
-        <div className="border-t border-slate-200 dark:border-slate-700 pt-3">
+        <div className="border-t border-border pt-3">
           {(() => {
-            const { label, cls } = ESTADO_INFO.CANCELADA
+            const cls = ESTADO_CLS.CANCELADA
+            const label = ESTADO_LABEL.CANCELADA
             const isSelected = estado === 'CANCELADA'
             return (
               <button
                 onClick={() => setEstado('CANCELADA')}
-                className={`w-full flex items-center justify-between px-4 py-3 rounded-2xl border text-sm font-medium transition ${isSelected ? cls : 'border-slate-200 dark:border-slate-700 text-slate-400 dark:text-slate-500 hover:bg-slate-200 dark:hover:bg-slate-700'}`}
+                className={`w-full flex items-center justify-between px-4 py-3 rounded-2xl border text-sm font-medium transition-colors ${isSelected ? cls : 'border-border text-muted-foreground hover:bg-surface-raised'}`}
               >
                 {label}
                 {isSelected && <Check size={16} />}
@@ -1377,7 +1380,7 @@ function EstadoModal({
         </div>
 
         {estado === 'CANCELADA' && (
-          <div className="px-3 py-2.5 rounded-2xl bg-red-500/10 border border-red-500/30 text-red-400 text-xs leading-relaxed">
+          <div className="px-3 py-2.5 rounded-2xl bg-destructive/10 border border-destructive/30 text-destructive text-xs leading-relaxed">
             Esta acción cancelará la orden, seguro?
           </div>
         )}
@@ -1385,7 +1388,7 @@ function EstadoModal({
         <button
           onClick={handleUpdate}
           disabled={saving}
-          className={`w-full py-3 rounded-2xl font-semibold text-sm transition disabled:opacity-50 ${estado === 'CANCELADA' ? 'bg-red-500 hover:bg-red-600 text-white' : 'bg-sky-500 hover:bg-sky-600 text-white'}`}
+          className={`w-full py-3 rounded-2xl font-semibold text-sm transition-colors disabled:opacity-50 ${estado === 'CANCELADA' ? 'bg-destructive hover:opacity-90 text-destructive-foreground' : 'bg-primary hover:opacity-90 text-primary-foreground'}`}
         >
           {saving ? 'Actualizando...' : estado === 'CANCELADA' ? 'Confirmar cancelación' : 'Guardar estado'}
         </button>

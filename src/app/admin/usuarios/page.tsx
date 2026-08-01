@@ -4,9 +4,15 @@ import { useEffect, useState, useCallback } from 'react'
 import { getUsuarios, createUsuario, updateUsuario, deleteUsuario } from '../../../lib/api/usuarios'
 import Modal from '../../../components/ui/Modal'
 import ConfirmDialog from '../../../components/ui/ConfirmDialog'
-import Toast from '../../../components/ui/Toast'
+import { toast } from 'sonner'
 import { Plus, Users, Pencil, Trash2 } from 'lucide-react'
 import { useAuth } from '../../../context/AuthContext'
+import { Button } from '@/components/ui/Button'
+import { Input } from '@/components/ui/Input'
+import { Label } from '@/components/ui/Label'
+import { Badge } from '@/components/ui/Badge'
+import { ListSkeleton } from '@/components/ui/Skeleton'
+import { EmptyState } from '@/components/ui/EmptyState'
 import type { Usuario, UserRole } from '../../../types'
 
 const ROLES_DISPONIBLES: UserRole[] = ['MESERO', 'COCINA']
@@ -39,13 +45,12 @@ export default function AdminUsuarios() {
   const [saving, setSaving] = useState(false)
 
   const [confirmDelete, setConfirmDelete] = useState<{ id: number; username: string } | null>(null)
-  const [toast, setToast] = useState<{ msg: string; type: 'success' | 'error' } | null>(null)
 
   const load = useCallback(() => {
     setLoading(true)
     getUsuarios()
       .then(setUsuarios)
-      .catch(() => setToast({ msg: 'Error al cargar usuarios', type: 'error' }))
+      .catch(() => toast.error('Error al cargar usuarios'))
       .finally(() => setLoading(false))
   }, [])
 
@@ -94,16 +99,16 @@ export default function AdminUsuarios() {
         }
         if (form.password) payload.password = form.password
         await updateUsuario(editingUser.id, payload)
-        setToast({ msg: 'Usuario actualizado', type: 'success' })
+        toast.success('Usuario actualizado')
       } else {
         await createUsuario({ username: form.username, password: form.password, roles: form.roles })
-        setToast({ msg: 'Usuario creado exitosamente', type: 'success' })
+        toast.success('Usuario creado exitosamente')
       }
       setModalOpen(false)
       load()
     } catch (e: unknown) {
       const err = e as { friendlyMessage?: string }
-      setToast({ msg: err.friendlyMessage || 'Error al guardar usuario', type: 'error' })
+      toast.error(err.friendlyMessage || 'Error al guardar usuario')
     } finally {
       setSaving(false)
     }
@@ -113,11 +118,11 @@ export default function AdminUsuarios() {
     if (!confirmDelete) return
     try {
       await deleteUsuario(confirmDelete.id)
-      setToast({ msg: `Usuario "${confirmDelete.username}" eliminado`, type: 'success' })
+      toast.success(`Usuario "${confirmDelete.username}" eliminado`)
       load()
     } catch (e: unknown) {
       const err = e as { friendlyMessage?: string }
-      setToast({ msg: err.friendlyMessage || 'Error al eliminar usuario', type: 'error' })
+      toast.error(err.friendlyMessage || 'Error al eliminar usuario')
     } finally {
       setConfirmDelete(null)
     }
@@ -127,28 +132,30 @@ export default function AdminUsuarios() {
     <div className="p-6 md:p-8">
       <div className="flex items-center justify-between mb-8">
         <div className="flex items-center gap-3">
-          <Users size={28} className="text-orange-400" />
+          <Users size={28} className="text-primary" />
           <div>
-            <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Usuarios</h1>
-            <p className="text-slate-500 dark:text-slate-400 text-sm">Gestión de usuarios del restaurante</p>
+            <h1 className="text-2xl font-bold text-foreground">Usuarios</h1>
+            <p className="text-muted-foreground text-sm">Gestión de usuarios del restaurante</p>
           </div>
         </div>
-        <button
-          onClick={openNew}
-          className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-orange-500 hover:bg-orange-600 text-white text-sm font-medium transition"
-        >
+        <Button onClick={openNew} size="md">
           <Plus size={16} /> Nuevo Usuario
-        </button>
+        </Button>
       </div>
 
       {loading ? (
-        <p className="text-slate-500 dark:text-slate-400 text-center py-12">Cargando...</p>
+        <ListSkeleton rows={5} />
       ) : usuarios.length === 0 ? (
-        <p className="text-slate-500 dark:text-slate-400 text-center py-12">No hay usuarios registrados.</p>
+        <EmptyState
+          icon={Users}
+          title="No hay usuarios registrados"
+          description="Creá el primer usuario para el restaurante."
+          action={<Button onClick={openNew} size="sm">Nuevo Usuario</Button>}
+        />
       ) : (
-        <div className="overflow-x-auto rounded-2xl border border-slate-200 dark:border-slate-700">
-          <table className="w-full text-sm text-slate-600 dark:text-slate-300">
-            <thead className="bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 uppercase text-xs tracking-wider">
+        <div className="overflow-x-auto rounded-2xl border border-border">
+          <table className="w-full text-sm text-muted-foreground">
+            <thead className="bg-surface text-muted-foreground uppercase text-xs tracking-wider">
               <tr>
                 <th className="px-6 py-4 text-left">Usuario</th>
                 <th className="px-6 py-4 text-left">Roles</th>
@@ -157,32 +164,30 @@ export default function AdminUsuarios() {
                 <th className="px-6 py-4 text-left">Acciones</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
+            <tbody className="divide-y divide-border">
               {usuarios.map(u => (
-                <tr key={u.id} className="bg-white dark:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-800 transition">
-                  <td className="px-6 py-4 font-medium text-slate-900 dark:text-white">{u.username}</td>
+                <tr key={u.id} className="bg-background hover:bg-surface-raised transition-colors cursor-pointer">
+                  <td className="px-6 py-4 font-medium text-foreground">{u.username}</td>
                   <td className="px-6 py-4">
                     <div className="flex flex-wrap gap-1">
                       {(u.roles || []).map(r => (
-                        <span key={r} className="px-2 py-0.5 rounded-full text-xs font-medium bg-orange-500/20 text-orange-300">
-                          {r}
-                        </span>
+                        <Badge key={r} variant="default">{r}</Badge>
                       ))}
                     </div>
                   </td>
                   <td className="px-6 py-4">
-                    <span className={`text-xs font-medium ${u.activo ? 'text-green-400' : 'text-red-400'}`}>
+                    <Badge variant={u.activo ? 'success' : 'destructive'}>
                       {u.activo ? 'Activo' : 'Inactivo'}
-                    </span>
+                    </Badge>
                   </td>
-                  <td className="px-6 py-4 text-slate-500 dark:text-slate-400">
+                  <td className="px-6 py-4 text-muted-foreground">
                     {u.createdAt ? new Date(u.createdAt).toLocaleDateString('es-AR') : '—'}
                   </td>
                   <td className="px-6 py-4">
                     <div className="flex items-center gap-2">
                       <button
                         onClick={() => openEdit(u)}
-                        className="p-1.5 rounded-lg bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white transition"
+                        className="p-1.5 rounded-lg bg-surface hover:bg-surface-raised text-muted-foreground hover:text-foreground transition-colors"
                         title="Editar"
                       >
                         <Pencil size={14} />
@@ -190,7 +195,7 @@ export default function AdminUsuarios() {
                       {u.username !== currentUser && (
                         <button
                           onClick={() => setConfirmDelete({ id: u.id, username: u.username })}
-                          className="p-1.5 rounded-lg bg-red-500/10 hover:bg-red-500/20 text-red-400 transition"
+                          className="p-1.5 rounded-lg hover:bg-destructive/10 text-destructive transition-colors"
                           title="Eliminar"
                         >
                           <Trash2 size={14} />
@@ -212,46 +217,46 @@ export default function AdminUsuarios() {
         size="sm"
       >
         <div className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-1.5">Usuario</label>
+          <div className="flex flex-col gap-1.5">
+            <Label>Usuario</Label>
             {editingUser ? (
-              <p className="px-4 py-3 rounded-xl bg-slate-200 dark:bg-slate-700 text-slate-500 dark:text-slate-400 text-sm">
+              <p className="px-4 py-3 rounded-xl bg-surface text-muted-foreground text-sm">
                 {editingUser.username}
               </p>
             ) : (
               <>
-                <input
+                <Input
                   type="text"
                   value={form.username}
                   onChange={e => { setForm(f => ({ ...f, username: e.target.value })); setErrors(ev => ({ ...ev, username: undefined })) }}
                   placeholder="mesero01"
-                  className={`w-full px-4 py-3 rounded-xl bg-slate-100 dark:bg-slate-800 border text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 transition ${errors.username ? 'border-red-500' : 'border-slate-300 dark:border-slate-600'}`}
+                  className={errors.username ? 'border-destructive' : ''}
                 />
-                {errors.username && <p className="mt-1 text-xs text-red-400">{errors.username}</p>}
+                {errors.username && <p className="text-xs text-destructive">{errors.username}</p>}
               </>
             )}
           </div>
 
-          <div>
-            <label className="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-1.5">
+          <div className="flex flex-col gap-1.5">
+            <Label>
               Contraseña{' '}
               {editingUser && (
-                <span className="text-slate-400 dark:text-slate-500 font-normal">(dejá vacío para no cambiarla)</span>
+                <span className="text-muted-foreground font-normal">(dejá vacío para no cambiarla)</span>
               )}
-            </label>
-            <input
+            </Label>
+            <Input
               type="password"
               value={form.password}
               onChange={e => { setForm(f => ({ ...f, password: e.target.value })); setErrors(ev => ({ ...ev, password: undefined })) }}
               placeholder={editingUser ? 'Nueva contraseña (opcional)' : 'Mínimo 6 caracteres'}
-              className={`w-full px-4 py-3 rounded-xl bg-slate-100 dark:bg-slate-800 border text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 transition ${errors.password ? 'border-red-500' : 'border-slate-300 dark:border-slate-600'}`}
+              className={errors.password ? 'border-destructive' : ''}
             />
-            {errors.password && <p className="mt-1 text-xs text-red-400">{errors.password}</p>}
+            {errors.password && <p className="text-xs text-destructive">{errors.password}</p>}
           </div>
 
           {editingUser?.username !== currentUser && (
-            <div>
-              <label className="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-2">Roles</label>
+            <div className="flex flex-col gap-2">
+              <Label>Roles</Label>
               <div className="flex gap-3">
                 {ROLES_DISPONIBLES.map(rol => (
                   <label key={rol} className="flex items-center gap-2 cursor-pointer">
@@ -259,19 +264,19 @@ export default function AdminUsuarios() {
                       type="checkbox"
                       checked={form.roles.includes(rol)}
                       onChange={() => { handleRolToggle(rol); setErrors(ev => ({ ...ev, roles: undefined })) }}
-                      className="w-4 h-4 rounded accent-orange-500"
+                      className="w-4 h-4 rounded accent-primary"
                     />
-                    <span className="text-sm text-slate-600 dark:text-slate-300">{rol}</span>
+                    <span className="text-sm text-foreground">{rol}</span>
                   </label>
                 ))}
               </div>
-              {errors.roles && <p className="mt-1 text-xs text-red-400">{errors.roles}</p>}
+              {errors.roles && <p className="text-xs text-destructive">{errors.roles}</p>}
             </div>
           )}
 
           {editingUser && editingUser.username !== currentUser && (
-            <div>
-              <label className="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-2">Estado</label>
+            <div className="flex flex-col gap-2">
+              <Label>Estado</Label>
               <div className="flex gap-4">
                 {([{ val: true, label: 'Activo' }, { val: false, label: 'Inactivo' }] as const).map(opt => (
                   <label key={String(opt.val)} className="flex items-center gap-2 cursor-pointer">
@@ -279,9 +284,9 @@ export default function AdminUsuarios() {
                       type="radio"
                       checked={form.activo === opt.val}
                       onChange={() => setForm(f => ({ ...f, activo: opt.val }))}
-                      className="accent-orange-500"
+                      className="accent-primary"
                     />
-                    <span className="text-sm text-slate-600 dark:text-slate-300">{opt.label}</span>
+                    <span className="text-sm text-foreground">{opt.label}</span>
                   </label>
                 ))}
               </div>
@@ -290,19 +295,20 @@ export default function AdminUsuarios() {
         </div>
 
         <div className="flex gap-3 mt-6">
-          <button
+          <Button
+            variant="outline"
             onClick={() => setModalOpen(false)}
-            className="flex-1 py-3 rounded-2xl border border-slate-300 dark:border-slate-600 text-slate-600 dark:text-slate-300 font-medium text-sm hover:bg-slate-200 dark:hover:bg-slate-700 transition"
+            className="flex-1 rounded-2xl h-11"
           >
             Cancelar
-          </button>
-          <button
+          </Button>
+          <Button
             onClick={handleSave}
             disabled={saving}
-            className="flex-1 py-3 rounded-2xl bg-orange-500 hover:bg-orange-600 text-white font-medium text-sm transition disabled:opacity-50"
+            className="flex-1 rounded-2xl h-11"
           >
             {saving ? 'Guardando...' : editingUser ? 'Guardar cambios' : 'Crear Usuario'}
-          </button>
+          </Button>
         </div>
       </Modal>
 
@@ -316,9 +322,6 @@ export default function AdminUsuarios() {
         />
       )}
 
-      {toast && (
-        <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />
-      )}
     </div>
   )
 }

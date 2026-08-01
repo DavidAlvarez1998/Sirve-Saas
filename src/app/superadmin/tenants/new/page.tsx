@@ -4,7 +4,10 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { PlusCircle } from 'lucide-react'
 import { createTenant } from '@/lib/api/tenants'
-import Toast from '@/components/ui/Toast'
+import { Button } from '@/components/ui/Button'
+import { Input } from '@/components/ui/Input'
+import { Label } from '@/components/ui/Label'
+import { toast } from 'sonner'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -18,11 +21,6 @@ interface FormErrors {
   nombre?: string
   slug?: string
   adminEmail?: string
-}
-
-interface ToastState {
-  msg: string
-  type: 'success' | 'error'
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -65,26 +63,21 @@ function Field({
   type = 'text',
 }: FieldProps) {
   return (
-    <div>
-      <label className="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-1.5">
-        {label}
-      </label>
-      <input
+    <div className="flex flex-col gap-1.5">
+      <Label htmlFor={name}>{label}</Label>
+      <Input
+        id={name}
         type={type}
         name={name}
         value={value}
         onChange={onChange}
         placeholder={placeholder}
-        className={`w-full px-4 py-3 rounded-xl bg-slate-100 dark:bg-slate-800 border text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 transition ${
-          error
-            ? 'border-red-500'
-            : 'border-slate-300 dark:border-slate-600 focus:border-indigo-500'
-        }`}
+        className={error ? 'border-destructive' : ''}
       />
       {hint && !error && (
-        <p className="mt-1 text-xs text-slate-400 dark:text-slate-500">{hint}</p>
+        <p className="text-xs text-muted-foreground">{hint}</p>
       )}
-      {error && <p className="mt-1 text-xs text-red-400">{error}</p>}
+      {error && <p className="text-xs text-destructive">{error}</p>}
     </div>
   )
 }
@@ -102,7 +95,6 @@ export default function CreateTenantPage() {
   const [slugEditado, setSlugEditado] = useState(false)
   const [errors, setErrors] = useState<FormErrors>({})
   const [saving, setSaving] = useState(false)
-  const [toast, setToast] = useState<ToastState | null>(null)
   const [setupUrl, setSetupUrl] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
 
@@ -157,10 +149,7 @@ export default function CreateTenantPage() {
         adminEmail: form.adminEmail,
       })
       setSetupUrl(result.setupUrl ?? null)
-      setToast({
-        msg: `Restaurante "${form.slug}" creado exitosamente`,
-        type: 'success',
-      })
+      toast.success(`Restaurante "${form.slug}" creado exitosamente`)
       setForm({ slug: '', nombre: '', adminEmail: '' })
       setSlugEditado(false)
     } catch (err) {
@@ -170,12 +159,9 @@ export default function CreateTenantPage() {
       }
       if (apiErr?.response?.status === 409) {
         setErrors((ev) => ({ ...ev, slug: 'Slug ya existe' }))
-        setToast({ msg: 'El slug ya está en uso', type: 'error' })
+        toast.error('El slug ya está en uso')
       } else {
-        setToast({
-          msg: apiErr.friendlyMessage ?? 'Error al crear el restaurante',
-          type: 'error',
-        })
+        toast.error(apiErr.friendlyMessage ?? 'Error al crear el restaurante')
       }
     } finally {
       setSaving(false)
@@ -185,12 +171,12 @@ export default function CreateTenantPage() {
   return (
     <div className="p-6 md:p-8 max-w-xl">
       <div className="flex items-center gap-3 mb-8">
-        <PlusCircle size={28} className="text-indigo-400" />
+        <PlusCircle size={28} className="text-primary" />
         <div>
-          <h1 className="text-2xl font-bold text-slate-900 dark:text-white">
+          <h1 className="text-2xl font-bold text-foreground">
             Nuevo Restaurante
           </h1>
-          <p className="text-slate-500 dark:text-slate-400 text-sm">
+          <p className="text-muted-foreground text-sm">
             Crear un restaurante en la plataforma
           </p>
         </div>
@@ -230,34 +216,35 @@ export default function CreateTenantPage() {
         />
 
         <div className="flex gap-3 pt-2">
-          <button
+          <Button
             type="button"
+            variant="outline"
             onClick={() => router.push('/superadmin')}
-            className="flex-1 py-3 rounded-2xl border border-slate-300 dark:border-slate-600 text-slate-600 dark:text-slate-300 font-medium text-sm hover:bg-slate-200 dark:hover:bg-slate-700 transition"
+            className="flex-1 rounded-2xl h-11"
           >
             Cancelar
-          </button>
-          <button
+          </Button>
+          <Button
             type="submit"
             disabled={saving}
-            className="flex-1 py-3 rounded-2xl bg-indigo-500 hover:bg-indigo-600 text-white font-medium text-sm transition disabled:opacity-50"
+            className="flex-1 rounded-2xl h-11"
           >
             {saving ? 'Creando...' : 'Crear Restaurante'}
-          </button>
+          </Button>
         </div>
       </form>
 
       {/* Setup URL display — stays visible until user navigates */}
       {setupUrl && (
-        <div className="mt-6 p-4 rounded-2xl bg-green-500/10 border border-green-500/30">
-          <p className="text-green-400 text-sm font-medium mb-2">
+        <div className="mt-6 p-4 rounded-2xl bg-success/10 border border-success/30">
+          <p className="text-success text-sm font-medium mb-2">
             Restaurante creado exitosamente
           </p>
-          <p className="text-slate-400 text-xs mb-2">
+          <p className="text-muted-foreground text-xs mb-2">
             Enlace de configuración:
           </p>
           <div className="flex items-center gap-2">
-            <span className="flex-1 text-green-300 text-xs break-all">
+            <span className="flex-1 text-success text-xs break-all">
               {setupUrl}
             </span>
             <button
@@ -267,27 +254,20 @@ export default function CreateTenantPage() {
                 setCopied(true)
                 setTimeout(() => setCopied(false), 2000)
               }}
-              className="shrink-0 px-3 py-1.5 rounded-lg bg-green-500/20 hover:bg-green-500/30 text-green-300 text-xs font-medium transition"
+              className="shrink-0 px-3 py-1.5 rounded-lg bg-success/20 hover:bg-success/30 text-success text-xs font-medium transition-colors"
             >
               {copied ? 'Copiado' : 'Copiar'}
             </button>
           </div>
           <button
             onClick={() => router.push('/superadmin')}
-            className="mt-3 text-xs text-slate-400 hover:text-slate-300 transition"
+            className="mt-3 text-xs text-muted-foreground hover:text-foreground transition-colors"
           >
             Ver lista de restaurantes
           </button>
         </div>
       )}
 
-      {toast && (
-        <Toast
-          message={toast.msg}
-          type={toast.type}
-          onClose={() => setToast(null)}
-        />
-      )}
     </div>
   )
 }

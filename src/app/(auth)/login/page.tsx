@@ -3,6 +3,9 @@
 import { useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '../../../context/AuthContext'
+import { Button } from '@/components/ui/Button'
+import { Input } from '@/components/ui/Input'
+import { Label } from '@/components/ui/Label'
 
 // ─── Role redirects ───────────────────────────────────────────────────────────
 
@@ -45,18 +48,16 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-white dark:bg-slate-900">
-      <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-md p-8 w-full max-w-sm">
-        <h1 className="text-2xl font-bold text-slate-900 dark:text-white mb-6 text-center">
+    <div className="min-h-screen flex items-center justify-center bg-background">
+      <div className="bg-surface rounded-2xl shadow-md p-8 w-full max-w-sm border border-border">
+        <h1 className="text-2xl font-bold text-foreground mb-6 text-center">
           Sirve
         </h1>
 
         <form ref={formRef} onSubmit={handleSubmit} className="flex flex-col gap-4">
-          <div>
-            <label className="block text-sm font-medium text-slate-600 dark:text-slate-400 mb-1">
-              Correo electrónico
-            </label>
-            <input
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="username">Correo electrónico</Label>
+            <Input
               id="username"
               name="username"
               type="text"
@@ -66,16 +67,13 @@ export default function LoginPage() {
               required
               autoFocus
               autoComplete="username"
-              className="w-full border border-slate-200 dark:border-slate-600 rounded-lg px-3 py-2 text-sm text-slate-900 dark:text-white bg-white dark:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
               placeholder="tu@email.com"
             />
           </div>
 
-          <div>
-            <label className="block text-sm font-medium text-slate-600 dark:text-slate-400 mb-1">
-              Contraseña
-            </label>
-            <input
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="password">Contraseña</Label>
+            <Input
               id="password"
               name="password"
               type="password"
@@ -83,22 +81,22 @@ export default function LoginPage() {
               onChange={(e) => setPassword(e.target.value)}
               required
               autoComplete="current-password"
-              className="w-full border border-slate-200 dark:border-slate-600 rounded-lg px-3 py-2 text-sm text-slate-900 dark:text-white bg-white dark:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
               placeholder="••••••••"
             />
           </div>
 
           {error && (
-            <p className="text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2">{error}</p>
+            <p className="text-sm text-destructive bg-destructive/10 rounded-lg px-3 py-2">{error}</p>
           )}
 
-          <button
+          <Button
             type="submit"
             disabled={loading}
-            className="mt-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-lg transition disabled:opacity-50"
+            size="lg"
+            className="mt-2 w-full rounded-lg"
           >
             {loading ? 'Ingresando...' : 'Ingresar'}
-          </button>
+          </Button>
         </form>
       </div>
     </div>

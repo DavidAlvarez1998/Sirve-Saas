@@ -5,16 +5,11 @@ import { Plus, Pencil, Trash2, TableProperties } from 'lucide-react'
 import { getMesas, createMesa, updateMesa, deleteMesa } from '@/lib/api/mesas'
 import Modal from '@/components/ui/Modal'
 import ConfirmDialog from '@/components/ui/ConfirmDialog'
-import Toast from '@/components/ui/Toast'
+import { toast } from 'sonner'
 import type { Mesa, ApiError } from '@/types'
 
 interface MesaForm {
   numero: string
-}
-
-interface ToastState {
-  msg: string
-  type: 'success' | 'error'
 }
 
 export default function AdminMesas() {
@@ -24,7 +19,6 @@ export default function AdminMesas() {
   const [editId, setEditId] = useState<number | null>(null)
   const [modalOpen, setModalOpen] = useState(false)
   const [confirm, setConfirm] = useState<number | null>(null)
-  const [toast, setToast] = useState<ToastState | null>(null)
   const [saving, setSaving] = useState(false)
 
   const load = useCallback(() => {
@@ -58,16 +52,16 @@ export default function AdminMesas() {
       const data: Partial<Mesa> = { numero: form.numero }
       if (editId !== null) {
         await updateMesa(editId, data)
-        setToast({ msg: 'Mesa actualizada', type: 'success' })
+        toast.success('Mesa actualizada')
       } else {
         await createMesa(data)
-        setToast({ msg: 'Mesa creada', type: 'success' })
+        toast.success('Mesa creada')
       }
       setModalOpen(false)
       load()
     } catch (e) {
       const err = e as ApiError
-      setToast({ msg: err.friendlyMessage ?? 'Error al guardar', type: 'error' })
+      toast.error(err.friendlyMessage ?? 'Error al guardar')
     } finally {
       setSaving(false)
     }
@@ -76,11 +70,11 @@ export default function AdminMesas() {
   const handleDelete = async (id: number) => {
     try {
       await deleteMesa(id)
-      setToast({ msg: 'Mesa eliminada', type: 'success' })
+      toast.success('Mesa eliminada')
       load()
     } catch (e) {
       const err = e as ApiError
-      setToast({ msg: err.friendlyMessage ?? 'Error al eliminar', type: 'error' })
+      toast.error(err.friendlyMessage ?? 'Error al eliminar')
     } finally {
       setConfirm(null)
     }
@@ -88,10 +82,6 @@ export default function AdminMesas() {
 
   return (
     <div className="p-5">
-      {toast && (
-        <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />
-      )}
-
       <div className="flex items-center justify-between mb-5">
         <div>
           <h1 className="text-2xl font-extrabold text-slate-900 dark:text-white">Mesas</h1>

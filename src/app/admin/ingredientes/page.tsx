@@ -7,8 +7,13 @@ import { getIngredientes, createIngrediente, updateIngrediente, deleteIngredient
 import { uploadImagen } from '@/lib/api/imagenes'
 import Modal from '@/components/ui/Modal'
 import ConfirmDialog from '@/components/ui/ConfirmDialog'
-import Toast from '@/components/ui/Toast'
+import { toast } from 'sonner'
 import ImageUpload from '@/components/ui/ImageUpload'
+import { Button } from '@/components/ui/Button'
+import { Input } from '@/components/ui/Input'
+import { Label } from '@/components/ui/Label'
+import { CardSkeleton } from '@/components/ui/Skeleton'
+import { EmptyState } from '@/components/ui/EmptyState'
 import type { Ingrediente, ApiError } from '@/types'
 import { fmt } from '@/lib/format'
 
@@ -19,11 +24,6 @@ interface IngredienteForm {
 
 const EMPTY: IngredienteForm = { nombre: '', precio: 0 }
 
-interface ToastState {
-  msg: string
-  type: 'success' | 'error'
-}
-
 export default function AdminIngredientes() {
   const [items, setItems] = useState<Ingrediente[]>([])
   const [loading, setLoading] = useState(true)
@@ -33,7 +33,6 @@ export default function AdminIngredientes() {
   const [imgUrl, setImgUrl] = useState<string | null>(null)
   const [modalOpen, setModalOpen] = useState(false)
   const [confirm, setConfirm] = useState<number | null>(null)
-  const [toast, setToast] = useState<ToastState | null>(null)
   const [saving, setSaving] = useState(false)
 
   const load = useCallback(() => {
@@ -88,16 +87,16 @@ export default function AdminIngredientes() {
 
       if (editId !== null) {
         await updateIngrediente(editId, data)
-        setToast({ msg: 'Ingrediente actualizado', type: 'success' })
+        toast.success('Ingrediente actualizado')
       } else {
         await createIngrediente(data)
-        setToast({ msg: 'Ingrediente creado', type: 'success' })
+        toast.success('Ingrediente creado')
       }
       setModalOpen(false)
       load()
     } catch (e) {
       const err = e as ApiError
-      setToast({ msg: err.friendlyMessage ?? 'Error al guardar', type: 'error' })
+      toast.error(err.friendlyMessage ?? 'Error al guardar')
     } finally {
       setSaving(false)
     }
@@ -106,11 +105,11 @@ export default function AdminIngredientes() {
   const handleDelete = async (id: number) => {
     try {
       await deleteIngrediente(id)
-      setToast({ msg: 'Ingrediente eliminado', type: 'success' })
+      toast.success('Ingrediente eliminado')
       load()
     } catch (e) {
       const err = e as ApiError
-      setToast({ msg: err.friendlyMessage ?? 'Error al eliminar', type: 'error' })
+      toast.error(err.friendlyMessage ?? 'Error al eliminar')
     } finally {
       setConfirm(null)
     }
@@ -118,65 +117,62 @@ export default function AdminIngredientes() {
 
   return (
     <div className="p-5">
-      {toast && (
-        <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />
-      )}
-
       <div className="flex items-center justify-between mb-5">
         <div>
-          <h1 className="text-2xl font-extrabold text-slate-900 dark:text-white">Ingredientes</h1>
-          <p className="text-slate-500 dark:text-slate-400 text-xs mt-0.5">
+          <h1 className="text-2xl font-semibold text-foreground">Ingredientes</h1>
+          <p className="text-muted-foreground text-xs mt-0.5">
             {items.length} registrados
           </p>
         </div>
-        <button
-          onClick={openNew}
-          className="flex items-center gap-2 bg-emerald-500 hover:bg-emerald-600 text-white px-4 py-2.5 rounded-2xl text-sm font-semibold shadow transition"
-        >
+        <Button onClick={openNew} size="md">
           <Plus size={16} /> Nuevo
-        </button>
+        </Button>
       </div>
 
       {loading ? (
-        <div className="flex justify-center py-16 text-slate-400 dark:text-slate-500 text-sm">
-          Cargando...
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <CardSkeleton key={i} />
+          ))}
         </div>
       ) : items.length === 0 ? (
-        <div className="flex flex-col items-center py-16 text-slate-400 dark:text-slate-500">
-          <Salad size={40} className="mb-2 opacity-40" />
-          <p className="text-sm">Sin ingredientes aún</p>
-        </div>
+        <EmptyState
+          icon={Salad}
+          title="Sin ingredientes aún"
+          description="Creá tu primer ingrediente para empezar."
+          action={<Button onClick={openNew} size="sm">Nuevo ingrediente</Button>}
+        />
       ) : (
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
           {items.map(item => (
             <div
               key={item.id}
-              className="bg-slate-100 dark:bg-slate-800 rounded-3xl shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden"
+              className="bg-surface rounded-3xl shadow-sm border border-border overflow-hidden hover:bg-surface-raised transition-colors cursor-pointer"
             >
               {item.imagenUrl ? (
                 <div className="relative w-full h-24">
                   <Image src={item.imagenUrl} alt={item.nombre} fill className="object-cover" sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw" />
                 </div>
               ) : (
-                <div className="w-full h-24 bg-slate-200 dark:bg-slate-700 flex items-center justify-center">
-                  <Salad size={28} className="text-slate-400 dark:text-slate-500" />
+                <div className="w-full h-24 bg-surface-sunken flex items-center justify-center">
+                  <Salad size={28} className="text-muted-foreground" />
                 </div>
               )}
               <div className="p-3">
-                <p className="font-bold text-slate-900 dark:text-white text-sm truncate">
+                <p className="font-bold text-foreground text-sm truncate">
                   {item.nombre}
                 </p>
-                <p className="text-emerald-400 font-extrabold text-sm mt-1">${fmt(item.precio)}</p>
+                <p className="text-success font-bold text-sm mt-1">${fmt(item.precio)}</p>
                 <div className="flex gap-1 mt-2">
                   <button
                     onClick={() => openEdit(item)}
-                    className="flex-1 flex justify-center py-1.5 rounded-xl hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-500 dark:text-slate-400 transition"
+                    className="flex-1 flex justify-center py-1.5 rounded-xl hover:bg-surface-raised text-muted-foreground transition-colors"
                   >
                     <Pencil size={14} />
                   </button>
                   <button
                     onClick={() => setConfirm(item.id)}
-                    className="flex-1 flex justify-center py-1.5 rounded-xl hover:bg-red-500/10 text-red-400 transition"
+                    className="flex-1 flex justify-center py-1.5 rounded-xl hover:bg-destructive/10 text-destructive transition-colors"
                   >
                     <Trash2 size={14} />
                   </button>
@@ -194,38 +190,32 @@ export default function AdminIngredientes() {
       >
         <div className="space-y-4">
           <ImageUpload value={imgUrl} onChange={handleImgChange} label="Foto del ingrediente" />
-          <div>
-            <label className="text-sm font-medium text-slate-600 dark:text-slate-300">
-              Nombre *
-            </label>
-            <input
-              className="mt-1 w-full bg-slate-200 dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-xl px-3 py-2.5 text-sm text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-400"
+          <div className="flex flex-col gap-1.5">
+            <Label>Nombre *</Label>
+            <Input
               placeholder="Ej. Queso mozzarella"
               value={form.nombre}
               onChange={e => setForm(f => ({ ...f, nombre: e.target.value }))}
             />
           </div>
-          <div>
-            <label className="text-sm font-medium text-slate-600 dark:text-slate-300">
-              Precio extra *
-            </label>
-            <input
+          <div className="flex flex-col gap-1.5">
+            <Label>Precio extra *</Label>
+            <Input
               type="number"
               min="0"
               step="0.01"
-              className="mt-1 w-full bg-slate-200 dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-xl px-3 py-2.5 text-sm text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-400"
               placeholder="0.00"
               value={form.precio}
               onChange={e => setForm(f => ({ ...f, precio: e.target.value }))}
             />
           </div>
-          <button
+          <Button
             onClick={handleSave}
             disabled={saving}
-            className="w-full bg-emerald-500 hover:bg-emerald-600 disabled:opacity-50 text-white py-3 rounded-2xl font-semibold text-sm transition mt-2"
+            className="w-full rounded-2xl h-11"
           >
             {saving ? 'Guardando...' : editId !== null ? 'Guardar cambios' : 'Crear ingrediente'}
-          </button>
+          </Button>
         </div>
       </Modal>
 

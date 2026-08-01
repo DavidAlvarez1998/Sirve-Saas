@@ -5,7 +5,13 @@ import { useParams, useRouter } from 'next/navigation'
 import { Users, Pencil, ArrowLeft, CheckCircle, XCircle } from 'lucide-react'
 import { getTenantUsuarios, updateTenantUsuario } from '@/lib/api/tenants'
 import Modal from '@/components/ui/Modal'
-import Toast from '@/components/ui/Toast'
+import { Button } from '@/components/ui/Button'
+import { Input } from '@/components/ui/Input'
+import { Label } from '@/components/ui/Label'
+import { Badge } from '@/components/ui/Badge'
+import { ListSkeleton } from '@/components/ui/Skeleton'
+import { EmptyState } from '@/components/ui/EmptyState'
+import { toast } from 'sonner'
 import type { Usuario, UserRole, UpdateUsuarioData } from '@/types'
 
 // ─── Constants ───────────────────────────────────────────────────────────────
@@ -26,11 +32,6 @@ interface FormErrors {
   username?: string
   password?: string
   roles?: string
-}
-
-interface ToastState {
-  msg: string
-  type: 'success' | 'error'
 }
 
 const emptyForm: FormState = {
@@ -58,18 +59,11 @@ export default function TenantDetailPage() {
   const [errors, setErrors] = useState<FormErrors>({})
   const [saving, setSaving] = useState(false)
 
-  const [toast, setToast] = useState<ToastState | null>(null)
-
   const load = useCallback(() => {
     setLoading(true)
     getTenantUsuarios(slug)
       .then(setUsuarios)
-      .catch(() =>
-        setToast({
-          msg: 'Error al cargar usuarios del restaurante',
-          type: 'error',
-        })
-      )
+      .catch(() => toast.error('Error al cargar usuarios del restaurante'))
       .finally(() => setLoading(false))
   }, [slug])
 
@@ -128,15 +122,12 @@ export default function TenantDetailPage() {
       if (form.password) payload.password = form.password
 
       await updateTenantUsuario(slug, editingUser.id, payload)
-      setToast({ msg: 'Usuario actualizado', type: 'success' })
+      toast.success('Usuario actualizado')
       setModalOpen(false)
       load()
     } catch (e) {
       const err = e as { friendlyMessage?: string }
-      setToast({
-        msg: err.friendlyMessage ?? 'Error al guardar usuario',
-        type: 'error',
-      })
+      toast.error(err.friendlyMessage ?? 'Error al guardar usuario')
     } finally {
       setSaving(false)
     }
@@ -148,19 +139,19 @@ export default function TenantDetailPage() {
       <div className="flex items-center gap-4 mb-8">
         <button
           onClick={() => router.push('/superadmin')}
-          className="p-2 rounded-xl bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 text-slate-600 dark:text-slate-300 transition"
+          className="p-2 rounded-xl bg-surface hover:bg-surface-raised text-muted-foreground transition-colors"
           title="Volver a restaurantes"
         >
           <ArrowLeft size={18} />
         </button>
         <div className="flex items-center gap-3">
-          <Users size={28} className="text-indigo-400" />
+          <Users size={28} className="text-primary" />
           <div>
-            <h1 className="text-2xl font-bold text-slate-900 dark:text-white">
+            <h1 className="text-2xl font-bold text-foreground">
               Usuarios —{' '}
-              <span className="font-mono text-indigo-400">{slug}</span>
+              <span className="font-mono text-primary">{slug}</span>
             </h1>
-            <p className="text-slate-500 dark:text-slate-400 text-sm">
+            <p className="text-muted-foreground text-sm">
               Gestión de usuarios del restaurante
             </p>
           </div>
@@ -169,17 +160,16 @@ export default function TenantDetailPage() {
 
       {/* Table */}
       {loading ? (
-        <p className="text-slate-500 dark:text-slate-400 text-center py-12">
-          Cargando...
-        </p>
+        <ListSkeleton rows={5} />
       ) : usuarios.length === 0 ? (
-        <p className="text-slate-500 dark:text-slate-400 text-center py-12">
-          No hay usuarios registrados para este restaurante.
-        </p>
+        <EmptyState
+          icon={Users}
+          title="No hay usuarios registrados para este restaurante"
+        />
       ) : (
-        <div className="overflow-x-auto rounded-2xl border border-slate-200 dark:border-slate-700">
-          <table className="w-full text-sm text-slate-600 dark:text-slate-300">
-            <thead className="bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 uppercase text-xs tracking-wider">
+        <div className="overflow-x-auto rounded-2xl border border-border">
+          <table className="w-full text-sm text-muted-foreground">
+            <thead className="bg-surface text-muted-foreground uppercase text-xs tracking-wider">
               <tr>
                 <th className="px-6 py-4 text-left">Usuario</th>
                 <th className="px-6 py-4 text-left">Email</th>
@@ -189,46 +179,39 @@ export default function TenantDetailPage() {
                 <th className="px-6 py-4 text-left">Acciones</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
+            <tbody className="divide-y divide-border">
               {usuarios.map((u) => (
                 <tr
                   key={u.id}
-                  className="bg-white dark:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-800 transition"
+                  className="bg-background hover:bg-surface-raised transition-colors cursor-pointer"
                 >
-                  <td className="px-6 py-4 font-medium text-slate-900 dark:text-white">
+                  <td className="px-6 py-4 font-medium text-foreground">
                     {u.username}
                   </td>
-                  <td className="px-6 py-4 text-slate-500 dark:text-slate-400">
+                  <td className="px-6 py-4 text-muted-foreground">
                     {u.email ?? (
-                      <span className="text-slate-300 dark:text-slate-600">
-                        —
-                      </span>
+                      <span className="text-muted-foreground/50">—</span>
                     )}
                   </td>
                   <td className="px-6 py-4">
                     <div className="flex flex-wrap gap-1">
                       {(u.roles ?? []).map((r) => (
-                        <span
-                          key={r}
-                          className="px-2 py-0.5 rounded-full text-xs font-medium bg-indigo-500/20 text-indigo-300"
-                        >
-                          {r}
-                        </span>
+                        <Badge key={r} variant="default">{r}</Badge>
                       ))}
                     </div>
                   </td>
                   <td className="px-6 py-4">
                     {u.activo ? (
-                      <span className="flex items-center gap-1 text-green-400 text-xs font-medium">
-                        <CheckCircle size={13} /> Activo
-                      </span>
+                      <Badge variant="success">
+                        <CheckCircle size={12} /> Activo
+                      </Badge>
                     ) : (
-                      <span className="flex items-center gap-1 text-red-400 text-xs font-medium">
-                        <XCircle size={13} /> Inactivo
-                      </span>
+                      <Badge variant="destructive">
+                        <XCircle size={12} /> Inactivo
+                      </Badge>
                     )}
                   </td>
-                  <td className="px-6 py-4 text-slate-500 dark:text-slate-400">
+                  <td className="px-6 py-4 text-muted-foreground">
                     {u.createdAt
                       ? new Date(u.createdAt).toLocaleDateString('es-AR')
                       : '—'}
@@ -236,7 +219,7 @@ export default function TenantDetailPage() {
                   <td className="px-6 py-4">
                     <button
                       onClick={() => openEdit(u)}
-                      className="p-1.5 rounded-lg bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white transition"
+                      className="p-1.5 rounded-lg bg-surface hover:bg-surface-raised text-muted-foreground hover:text-foreground transition-colors"
                       title="Editar"
                     >
                       <Pencil size={14} />
@@ -257,50 +240,47 @@ export default function TenantDetailPage() {
         size="sm"
       >
         <div className="space-y-4">
-          {/* Username — readOnly display (original keeps it readOnly conceptually; we show it) */}
-          <div>
-            <label className="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-1.5">
-              Usuario
-            </label>
-            <input
+          {/* Username — readOnly display */}
+          <div className="flex flex-col gap-1.5">
+            <Label>Usuario</Label>
+            <Input
               type="text"
               value={form.username}
               readOnly
-              className="w-full px-4 py-3 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-600 text-slate-500 dark:text-slate-400 text-sm cursor-not-allowed"
+              className="cursor-not-allowed opacity-60"
             />
             {errors.username && (
-              <p className="mt-1 text-xs text-red-400">{errors.username}</p>
+              <p className="text-xs text-destructive">{errors.username}</p>
             )}
           </div>
 
           {/* Email */}
-          <div>
-            <label className="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-1.5">
+          <div className="flex flex-col gap-1.5">
+            <Label>
               Email{' '}
-              <span className="text-slate-400 dark:text-slate-500 font-normal">
+              <span className="text-muted-foreground font-normal">
                 (opcional)
               </span>
-            </label>
-            <input
+            </Label>
+            <Input
               type="email"
               value={form.email}
               onChange={(e) =>
                 setForm((f) => ({ ...f, email: e.target.value }))
               }
               placeholder="usuario@restaurante.com"
-              className="w-full px-4 py-3 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-600 text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 transition"
             />
           </div>
 
           {/* Password optional */}
-          <div>
-            <label className="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-1.5">
+          <div className="flex flex-col gap-1.5">
+            <Label>
               Contraseña{' '}
-              <span className="text-slate-400 dark:text-slate-500 font-normal">
+              <span className="text-muted-foreground font-normal">
                 (dejá vacío para no cambiarla)
               </span>
-            </label>
-            <input
+            </Label>
+            <Input
               type="password"
               value={form.password}
               onChange={(e) => {
@@ -308,22 +288,16 @@ export default function TenantDetailPage() {
                 setErrors((ev) => ({ ...ev, password: undefined }))
               }}
               placeholder="Nueva contraseña (opcional)"
-              className={`w-full px-4 py-3 rounded-xl bg-slate-100 dark:bg-slate-800 border text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 transition ${
-                errors.password
-                  ? 'border-red-500'
-                  : 'border-slate-300 dark:border-slate-600'
-              }`}
+              className={errors.password ? 'border-destructive' : ''}
             />
             {errors.password && (
-              <p className="mt-1 text-xs text-red-400">{errors.password}</p>
+              <p className="text-xs text-destructive">{errors.password}</p>
             )}
           </div>
 
           {/* Roles */}
-          <div>
-            <label className="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-2">
-              Roles
-            </label>
+          <div className="flex flex-col gap-2">
+            <Label>Roles</Label>
             <div className="flex flex-wrap gap-3">
               {ROLES_DISPONIBLES.map((rol) => (
                 <label
@@ -337,24 +311,22 @@ export default function TenantDetailPage() {
                       handleRolToggle(rol)
                       setErrors((ev) => ({ ...ev, roles: undefined }))
                     }}
-                    className="w-4 h-4 rounded accent-indigo-500"
+                    className="w-4 h-4 rounded accent-primary"
                   />
-                  <span className="text-sm text-slate-600 dark:text-slate-300">
+                  <span className="text-sm text-foreground">
                     {rol}
                   </span>
                 </label>
               ))}
             </div>
             {errors.roles && (
-              <p className="mt-1 text-xs text-red-400">{errors.roles}</p>
+              <p className="text-xs text-destructive">{errors.roles}</p>
             )}
           </div>
 
           {/* Estado */}
-          <div>
-            <label className="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-2">
-              Estado
-            </label>
+          <div className="flex flex-col gap-2">
+            <Label>Estado</Label>
             <div className="flex gap-4">
               {[
                 { val: true, label: 'Activo' },
@@ -370,9 +342,9 @@ export default function TenantDetailPage() {
                     onChange={() =>
                       setForm((f) => ({ ...f, activo: opt.val }))
                     }
-                    className="accent-indigo-500"
+                    className="accent-primary"
                   />
-                  <span className="text-sm text-slate-600 dark:text-slate-300">
+                  <span className="text-sm text-foreground">
                     {opt.label}
                   </span>
                 </label>
@@ -382,29 +354,23 @@ export default function TenantDetailPage() {
         </div>
 
         <div className="flex gap-3 mt-6">
-          <button
+          <Button
+            variant="outline"
             onClick={() => setModalOpen(false)}
-            className="flex-1 py-3 rounded-2xl border border-slate-300 dark:border-slate-600 text-slate-600 dark:text-slate-300 font-medium text-sm hover:bg-slate-200 dark:hover:bg-slate-700 transition"
+            className="flex-1 rounded-2xl h-11"
           >
             Cancelar
-          </button>
-          <button
+          </Button>
+          <Button
             onClick={handleSave}
             disabled={saving}
-            className="flex-1 py-3 rounded-2xl bg-indigo-500 hover:bg-indigo-600 text-white font-medium text-sm transition disabled:opacity-50"
+            className="flex-1 rounded-2xl h-11"
           >
             {saving ? 'Guardando...' : 'Guardar cambios'}
-          </button>
+          </Button>
         </div>
       </Modal>
 
-      {toast && (
-        <Toast
-          message={toast.msg}
-          type={toast.type}
-          onClose={() => setToast(null)}
-        />
-      )}
     </div>
   )
 }

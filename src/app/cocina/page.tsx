@@ -18,7 +18,11 @@ import { LayoutDashboard } from 'lucide-react'
 import LogoutButton from '@/components/auth/LogoutButton'
 import ThemeToggle from '@/components/auth/ThemeToggle'
 import { useAuth } from '@/context/AuthContext'
-import Toast from '@/components/ui/Toast'
+import { toast } from 'sonner'
+import { Badge } from '@/components/ui/Badge'
+import { ListSkeleton } from '@/components/ui/Skeleton'
+import { EmptyState } from '@/components/ui/EmptyState'
+import { ESTADO_LABEL, ESTADO_VARIANT } from '@/lib/estado-orden'
 import type { Orden, OrdenItem, TipoProducto } from '@/types'
 
 // ─── Types ──────────────────────────────────────────────────────────────────
@@ -31,11 +35,6 @@ interface ProductoInfo {
 type ProducotoMap = Record<string, ProductoInfo>
 
 type Tab = 'pendientes' | 'finalizadas'
-
-interface ToastState {
-  msg: string
-  type: 'success' | 'error'
-}
 
 // Grouped item (quantity summed for identical items)
 interface GroupedItem extends OrdenItem {
@@ -50,11 +49,12 @@ const TIPO_LABEL: Record<string, (mesaNumero?: number | string | null) => string
   DOMICILIO: () => 'Domicilio',
 }
 
-const ESTADO_COLOR: Record<string, string> = {
-  ABIERTA: 'bg-blue-500',
-  EN_PREPARACION: 'bg-yellow-500',
-  LISTA: 'bg-green-500',
-  EN_CAMINO: 'bg-indigo-500',
+// Token-based card header classes per estado (used for the colored card header strip)
+const ESTADO_HEADER_CLS: Record<string, string> = {
+  ABIERTA:        'bg-info text-white',
+  EN_PREPARACION: 'bg-warning text-black',
+  LISTA:          'bg-success text-white',
+  EN_CAMINO:      'bg-info text-white',
 }
 
 const getNextEstado = (
@@ -101,16 +101,16 @@ const getUrgencia = (
     return {
       level: 'alta',
       label: `${min}m`,
-      cardCls: 'border-red-500 ring-1 ring-red-500/40',
-      badgeCls: 'bg-red-500 text-white',
+      cardCls: 'border-destructive ring-1 ring-destructive/40',
+      badgeCls: 'bg-destructive text-destructive-foreground',
     }
   }
   if (min >= 15) {
     return {
       level: 'media',
       label: `${min}m`,
-      cardCls: 'border-amber-400',
-      badgeCls: 'bg-amber-400 text-black',
+      cardCls: 'border-warning',
+      badgeCls: 'bg-warning text-black',
     }
   }
   return null
@@ -152,7 +152,6 @@ export default function CocinaPage() {
   const [tab, setTab] = useState<Tab>('pendientes')
   const [loading, setLoading] = useState(true)
   const [advancing, setAdvancing] = useState<number | null>(null)
-  const [toast, setToast] = useState<ToastState | null>(null)
   const [now, setNow] = useState<Date>(new Date())
   const [productoMap, setProductoMap] = useState<ProducotoMap>({})
 
@@ -166,9 +165,6 @@ export default function CocinaPage() {
     if (!silent) setLoading(true)
     Promise.all([getCocinaOrdenes(), getCocinaFinalizadas()])
       .then(([p, f]) => {
-        const yaListas = p.filter(
-          (o) => o.estado === 'LISTA' || o.estado === 'EN_CAMINO'
-        )
         setPendientes(
           p
             .filter((o) => o.estado !== 'LISTA' && o.estado !== 'EN_CAMINO')
@@ -177,6 +173,9 @@ export default function CocinaPage() {
                 new Date(a.fechaCreacion ?? a.createdAt ?? 0).getTime() -
                 new Date(b.fechaCreacion ?? b.createdAt ?? 0).getTime()
             )
+        )
+        const yaListas = p.filter(
+          (o) => o.estado === 'LISTA' || o.estado === 'EN_CAMINO'
         )
         setFinalizadas([
           ...yaListas,
@@ -217,10 +216,7 @@ export default function CocinaPage() {
       load(true)
     } catch (e) {
       const err = e as { friendlyMessage?: string }
-      setToast({
-        msg: err?.friendlyMessage ?? 'Error al actualizar el estado',
-        type: 'error',
-      })
+      toast.error(err?.friendlyMessage ?? 'Error al actualizar el estado')
     } finally {
       setAdvancing(null)
     }
@@ -229,24 +225,16 @@ export default function CocinaPage() {
   const ordenes = tab === 'pendientes' ? pendientes : finalizadas
 
   return (
-    <div className="min-h-screen bg-white dark:bg-slate-900 text-slate-900 dark:text-white flex flex-col">
-      {toast && (
-        <Toast
-          message={toast.msg}
-          type={toast.type}
-          onClose={() => setToast(null)}
-        />
-      )}
-
+    <div className="min-h-screen bg-background text-foreground flex flex-col">
       {/* Header */}
-      <header className="bg-slate-100 dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 px-4 py-4 flex items-center justify-between">
+      <header className="bg-surface border-b border-border px-4 py-4 flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-xl bg-emerald-500 flex items-center justify-center">
-            <ChefHat size={18} />
+          <div className="w-9 h-9 rounded-xl bg-primary flex items-center justify-center">
+            <ChefHat size={18} className="text-primary-foreground" />
           </div>
           <div>
-            <h1 className="font-extrabold text-base leading-tight">Cocina</h1>
-            <p className="text-slate-500 dark:text-slate-400 text-xs">
+            <h1 className="font-semibold text-base leading-tight text-foreground">Cocina</h1>
+            <p className="text-muted-foreground text-xs">
               Sistema de pantalla
             </p>
           </div>
@@ -255,7 +243,7 @@ export default function CocinaPage() {
           {hasRole('ADMIN') && (
             <Link
               href="/admin"
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-300 dark:hover:bg-slate-600 transition"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-surface-raised text-foreground hover:bg-surface-sunken transition-colors"
             >
               <LayoutDashboard size={13} />
               Volver al panel
@@ -267,13 +255,13 @@ export default function CocinaPage() {
       </header>
 
       {/* Tabs */}
-      <div className="flex mx-4 mt-4 bg-slate-100 dark:bg-slate-800 rounded-2xl p-1 gap-1">
+      <div className="flex mx-4 mt-4 bg-surface rounded-2xl p-1 gap-1">
         <button
           onClick={() => setTab('pendientes')}
-          className={`flex-1 py-2 rounded-xl text-sm font-semibold transition flex items-center justify-center gap-1.5 ${
+          className={`flex-1 py-2 rounded-xl text-sm font-semibold transition-colors flex items-center justify-center gap-1.5 ${
             tab === 'pendientes'
-              ? 'bg-emerald-500 text-white'
-              : 'text-slate-500 dark:text-slate-400'
+              ? 'bg-primary text-primary-foreground'
+              : 'text-muted-foreground hover:bg-surface-raised'
           }`}
         >
           <Clock size={14} /> Pendientes
@@ -281,8 +269,8 @@ export default function CocinaPage() {
             <span
               className={`ml-1 w-5 h-5 rounded-full text-xs flex items-center justify-center font-bold ${
                 tab === 'pendientes'
-                  ? 'bg-white text-emerald-600'
-                  : 'bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300'
+                  ? 'bg-primary-foreground text-primary'
+                  : 'bg-surface-raised text-foreground'
               }`}
             >
               {pendientes.length}
@@ -291,10 +279,10 @@ export default function CocinaPage() {
         </button>
         <button
           onClick={() => setTab('finalizadas')}
-          className={`flex-1 py-2 rounded-xl text-sm font-semibold transition flex items-center justify-center gap-1.5 ${
+          className={`flex-1 py-2 rounded-xl text-sm font-semibold transition-colors flex items-center justify-center gap-1.5 ${
             tab === 'finalizadas'
-              ? 'bg-slate-300 dark:bg-slate-600 text-slate-900 dark:text-white'
-              : 'text-slate-500 dark:text-slate-400'
+              ? 'bg-surface-raised text-foreground'
+              : 'text-muted-foreground'
           }`}
         >
           <Check size={14} /> Finalizadas
@@ -304,18 +292,13 @@ export default function CocinaPage() {
       {/* Orders grid */}
       <div className="flex-1 p-4 overflow-auto">
         {loading ? (
-          <div className="text-center text-slate-400 dark:text-slate-500 py-12 text-sm">
-            Cargando...
-          </div>
+          <ListSkeleton rows={4} />
         ) : ordenes.length === 0 ? (
-          <div className="flex flex-col items-center py-16 text-slate-500 dark:text-slate-600">
-            <ChefHat size={48} className="mb-3 opacity-30" />
-            <p className="text-sm">
-              {tab === 'pendientes'
-                ? '¡Todo al día! Sin pedidos pendientes.'
-                : 'Sin órdenes finalizadas.'}
-            </p>
-          </div>
+          <EmptyState
+            icon={ChefHat}
+            title={tab === 'pendientes' ? '¡Todo al día! Sin pedidos pendientes.' : 'Sin órdenes finalizadas.'}
+            className="border-0 py-16"
+          />
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {ordenes.map((o) => {
@@ -342,20 +325,20 @@ export default function CocinaPage() {
               return (
                 <div
                   key={ordenId}
-                  className={`bg-slate-100 dark:bg-slate-800 rounded-3xl overflow-hidden border transition ${
+                  className={`bg-surface rounded-3xl overflow-hidden border transition-colors hover:bg-surface-raised ${
                     urgencia
                       ? urgencia.cardCls
-                      : 'border-slate-200 dark:border-slate-700'
+                      : 'border-border'
                   }`}
                 >
                   {/* Card header */}
                   <div
                     className={`px-4 py-3 flex items-center justify-between ${
-                      ESTADO_COLOR[o.estado] ?? 'bg-slate-700'
+                      ESTADO_HEADER_CLS[o.estado] ?? 'bg-surface-raised text-foreground'
                     }`}
                   >
                     <div>
-                      <p className="font-extrabold text-sm">
+                      <p className="font-semibold text-sm">
                         {(
                           TIPO_LABEL[o.tipoOrden] ?? (() => o.tipoOrden)
                         )(o.mesaNumero)}
@@ -378,13 +361,7 @@ export default function CocinaPage() {
                       <div className="flex items-center gap-1.5">
                         {elapsedLabel && (
                           <span
-                            className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${
-                              minTranscurridos >= 30
-                                ? 'bg-red-500 text-white'
-                                : minTranscurridos >= 15
-                                ? 'bg-amber-400 text-black'
-                                : 'bg-white/20 text-white/90'
-                            }`}
+                            className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${urgencia?.badgeCls ?? 'bg-white/20 text-white/90'}`}
                           >
                             ⏱ {elapsedLabel}
                           </span>
@@ -419,7 +396,7 @@ export default function CocinaPage() {
                           key={item.itemId ?? item.id}
                           className="flex items-start gap-2"
                         >
-                          <div className="flex-shrink-0 w-10 h-10 rounded-xl overflow-hidden bg-slate-200 dark:bg-slate-700 flex items-center justify-center">
+                          <div className="flex-shrink-0 w-10 h-10 rounded-xl overflow-hidden bg-surface-sunken flex items-center justify-center">
                             {info?.imagenUrl ? (
                               // eslint-disable-next-line @next/next/no-img-element
                               <img
@@ -430,21 +407,21 @@ export default function CocinaPage() {
                             ) : (
                               <Package
                                 size={16}
-                                className="text-slate-400 dark:text-slate-500"
+                                className="text-muted-foreground"
                               />
                             )}
                           </div>
                           <div className="flex items-center gap-1.5 pt-0.5">
-                            <span className="w-6 h-6 rounded-lg bg-slate-200 dark:bg-slate-700 text-slate-900 dark:text-white text-xs font-bold flex items-center justify-center flex-shrink-0">
+                            <span className="w-6 h-6 rounded-lg bg-surface-sunken text-foreground text-xs font-bold flex items-center justify-center flex-shrink-0">
                               {item.cantidad}
                             </span>
                           </div>
                           <div className="flex-1 min-w-0 pt-0.5">
-                            <p className="text-sm font-semibold text-slate-900 dark:text-white truncate">
+                            <p className="text-sm font-semibold text-foreground truncate">
                               {nombre}
                             </p>
                             {item.notas && (
-                              <p className="text-xs text-yellow-400 italic">
+                              <p className="text-xs text-warning italic">
                                 {item.notas}
                               </p>
                             )}
@@ -453,7 +430,7 @@ export default function CocinaPage() {
                                 {ings.map((ing, i) => (
                                   <span
                                     key={i}
-                                    className="text-[10px] bg-emerald-900/60 text-emerald-400 px-2 py-0.5 rounded-full"
+                                    className="text-[10px] bg-success/15 text-success px-2 py-0.5 rounded-full"
                                   >
                                     {ing.cantidad > 1
                                       ? `${ing.cantidad}x `
@@ -473,11 +450,11 @@ export default function CocinaPage() {
                         {preparados.map(renderItem)}
                         {preparados.length > 0 && directa.length > 0 && (
                           <div className="flex items-center gap-2 py-1">
-                            <div className="flex-1 border-t border-slate-300 dark:border-slate-600/60" />
-                            <span className="text-[10px] text-slate-400 dark:text-slate-500 font-medium">
+                            <div className="flex-1 border-t border-border" />
+                            <span className="text-[10px] text-muted-foreground font-medium">
                               Venta directa
                             </span>
-                            <div className="flex-1 border-t border-slate-300 dark:border-slate-600/60" />
+                            <div className="flex-1 border-t border-border" />
                           </div>
                         )}
                         {directa.map(renderItem)}
@@ -487,12 +464,12 @@ export default function CocinaPage() {
 
                   {/* Footer: advance button or status badge */}
                   {getNextEstado(o.estado) ? (
-                    <div className="px-4 pb-3 pt-2 border-t border-slate-200 dark:border-slate-700/50 flex justify-end">
+                    <div className="px-4 pb-3 pt-2 border-t border-border flex justify-end">
                       <button
                         onClick={() => handleAvanzar(ordenId, o.estado)}
                         disabled={isAdvancing}
-                        className={`inline-flex items-center gap-1.5 px-4 py-1.5 rounded-full text-xs font-semibold tracking-wide transition active:scale-95 disabled:opacity-50 text-white shadow-sm ${
-                          ESTADO_COLOR[o.estado] ?? 'bg-slate-600'
+                        className={`inline-flex items-center gap-1.5 px-4 py-1.5 rounded-full text-xs font-semibold tracking-wide transition-colors active:scale-95 disabled:opacity-50 text-white shadow-sm ${
+                          ESTADO_HEADER_CLS[o.estado] ?? 'bg-surface-raised text-foreground'
                         } hover:opacity-80`}
                       >
                         {isAdvancing ? (
@@ -507,13 +484,11 @@ export default function CocinaPage() {
                     </div>
                   ) : (
                     (o.estado === 'LISTA' || o.estado === 'EN_CAMINO') && (
-                      <div className="px-4 pb-3 pt-2 border-t border-slate-200 dark:border-slate-700/50 flex justify-end">
-                        <span className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-semibold text-green-400 bg-green-500/15 border border-green-500/30">
+                      <div className="px-4 pb-3 pt-2 border-t border-border flex justify-end">
+                        <Badge variant={ESTADO_VARIANT[o.estado] ?? 'muted'}>
                           <Check size={11} />
-                          {o.estado === 'EN_CAMINO'
-                            ? 'En camino'
-                            : 'Lista — esperando mesero'}
-                        </span>
+                          {ESTADO_LABEL[o.estado] ?? o.estado}
+                        </Badge>
                       </div>
                     )
                   )}

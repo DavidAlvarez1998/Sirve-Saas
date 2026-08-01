@@ -1,6 +1,7 @@
 'use client'
 
 import Modal from './Modal'
+import { Button } from '@/components/ui/Button'
 
 interface ConfirmDialogProps {
   open: boolean
@@ -21,22 +22,22 @@ export default function ConfirmDialog({
 }: ConfirmDialogProps) {
   return (
     <Modal open={open} onClose={onCancel} title={title} size="sm">
-      <p className="text-slate-600 dark:text-slate-300 text-sm mb-6">{message}</p>
+      <p className="text-muted-foreground text-sm mb-6">{message}</p>
       <div className="flex gap-3">
-        <button
+        <Button
+          variant="outline"
           onClick={onCancel}
-          className="flex-1 py-3 rounded-2xl border border-slate-300 dark:border-slate-600 text-slate-600 dark:text-slate-300 font-medium text-sm hover:bg-slate-200 dark:hover:bg-slate-700 transition"
+          className="flex-1 rounded-2xl h-11"
         >
           Cancelar
-        </button>
-        <button
+        </Button>
+        <Button
+          variant={danger ? 'destructive' : 'default'}
           onClick={onConfirm}
-          className={`flex-1 py-3 rounded-2xl text-white font-medium text-sm transition ${
-            danger ? 'bg-red-500 hover:bg-red-600' : 'bg-orange-500 hover:bg-orange-600'
-          }`}
+          className="flex-1 rounded-2xl h-11"
         >
           Confirmar
-        </button>
+        </Button>
       </div>
     </Modal>
   )

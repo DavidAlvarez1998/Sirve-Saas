@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createOrden } from '../../lib/api/ordenes'
 import Modal from '../../components/ui/Modal'
-import Toast from '../../components/ui/Toast'
+import { toast } from 'sonner'
 import { TableProperties, Plus } from 'lucide-react'
 import { useMesero } from '../../context/MeseroContext'
 import type { Mesa, TipoOrden } from '../../types'
@@ -13,7 +13,6 @@ export default function MeseroMesas() {
   const { mesas, ordenes, loadingMesas, invalidateOrdenes, invalidateMesas } = useMesero()
   const [modalOpen, setModalOpen] = useState(false)
   const [selectedMesa, setSelectedMesa] = useState<Mesa | null>(null)
-  const [toast, setToast] = useState<{ msg: string; type: 'success' | 'error' } | null>(null)
   const [saving, setSaving] = useState(false)
   const router = useRouter()
 
@@ -47,7 +46,7 @@ export default function MeseroMesas() {
     setSaving(true)
     try {
       const orden = await createOrden({ tipoOrden: 'MESA', mesaId: selectedMesa.id })
-      setToast({ msg: `Orden creada en Mesa ${selectedMesa.numero}`, type: 'success' })
+      toast.success(`Orden creada en Mesa ${selectedMesa.numero}`)
       setModalOpen(false)
       invalidateOrdenes()
       invalidateMesas()
@@ -55,7 +54,7 @@ export default function MeseroMesas() {
       router.push('/mesero/ordenes')
     } catch (e: unknown) {
       const err = e as { friendlyMessage?: string }
-      setToast({ msg: err.friendlyMessage || 'Error al crear orden', type: 'error' })
+      toast.error(err.friendlyMessage || 'Error al crear orden')
     } finally {
       setSaving(false)
     }
@@ -63,7 +62,6 @@ export default function MeseroMesas() {
 
   return (
     <div className="p-5">
-      {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
 
       <div className="flex items-center justify-between mb-5">
         <div>
@@ -114,7 +112,7 @@ export default function MeseroMesas() {
             setSaving(true)
             try {
               const orden = await createOrden({ tipoOrden: tipo, ...cliente })
-              setToast({ msg: 'Orden creada', type: 'success' })
+              toast.success('Orden creada')
               setModalOpen(false)
               invalidateOrdenes()
               invalidateMesas()
@@ -122,7 +120,7 @@ export default function MeseroMesas() {
               router.push('/mesero/ordenes')
             } catch (e: unknown) {
               const err = e as { friendlyMessage?: string }
-              setToast({ msg: err.friendlyMessage || 'Error al crear orden', type: 'error' })
+              toast.error(err.friendlyMessage || 'Error al crear orden')
             } finally {
               setSaving(false)
             }
