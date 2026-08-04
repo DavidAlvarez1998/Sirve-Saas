@@ -3,9 +3,8 @@
 import { useEffect, useRef } from 'react'
 import { getSupabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
-import type { Orden } from '../types'
 
-export function useOrdenRealtime(onOrdenEvent: (orden: Orden) => void): void {
+export function useOrdenRealtime(onOrdenEvent: (payload: unknown) => void): void {
   const { tenantSlug } = useAuth()
   const callbackRef = useRef(onOrdenEvent)
 
@@ -22,8 +21,8 @@ export function useOrdenRealtime(onOrdenEvent: (orden: Orden) => void): void {
 
     const channel = getSupabase()
       .channel(`ordenes:${tenantSlug}`)
-      .on('broadcast', { event: 'orden' }, ({ payload }) => {
-        callbackRef.current(payload as Orden)
+      .on('broadcast', { event: 'orden_update' }, ({ payload }) => {
+        callbackRef.current(payload)
       })
       .subscribe()
 

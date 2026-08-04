@@ -41,6 +41,11 @@ export const AddItemSchema = z.object({
   })).optional(),
 })
 
+export const AddItemsBatchSchema = z.object({
+  items: AddItemSchema.array().min(1).max(50),
+})
+export type AddItemsBatchData = z.infer<typeof AddItemsBatchSchema>
+
 export const UpdateItemSchema = AddItemSchema
 
 export const PagarOrdenSchema = z.object({

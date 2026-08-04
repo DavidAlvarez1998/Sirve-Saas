@@ -75,8 +75,13 @@ export function MeseroProvider({ children }: { children: React.ReactNode }) {
   }, [])
 
   // Realtime — one subscription per layout mount, lives across Mesas <-> Ordenes navigation
-  useOrdenRealtime(() => {
-    invalidateOrdenes()
+  useOrdenRealtime((payload) => {
+    const p = payload as { tipo?: string; ordenId?: number }
+    if (p.tipo === 'ELIMINADA' && p.ordenId) {
+      setOrdenes(prev => prev.filter(o => o.id !== p.ordenId))
+    } else {
+      invalidateOrdenes()
+    }
   })
 
   const value = useMemo<MeseroContextValue>(

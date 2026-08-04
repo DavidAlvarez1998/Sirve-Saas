@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback, useRef } from 'react'
 import {
   getOrdenById,
   getOrdenesHistorial,
-  addItem,
+  addItems,
   removeItem,
   updateItem,
   updateEstado,
@@ -114,6 +114,12 @@ export default function MeseroOrdenes() {
     return () => window.removeEventListener('popstate', onPop)
   }, [])
 
+  useEffect(() => {
+    const onReselect = () => { detailHistoryPushed.current = false; setSelected(null) }
+    window.addEventListener('nav:reselect', onReselect)
+    return () => window.removeEventListener('nav:reselect', onReselect)
+  }, [])
+
   const loadHistorial = useCallback((page: number, append = false) => {
     setHistLoading(true)
     getOrdenesHistorial(page, 20)
@@ -130,8 +136,12 @@ export default function MeseroOrdenes() {
     getOrdenById(id).then(updated => {
       setSelected(updated)
       syncOrden(updated)
-    }).catch(() => {})
-  }, [syncOrden])
+    }).catch(() => {
+      setSelected(null)
+      toast.error('La orden ya no existe')
+      invalidateOrdenes()
+    })
+  }, [syncOrden, invalidateOrdenes])
 
   // On mount: read sessionStorage to restore ordenId selection (replaces React Router location.state)
   useEffect(() => {
@@ -718,6 +728,14 @@ function OrdenListItem({
 
 // ─── AddItemModal ─────────────────────────────────────────────────────────────
 
+type CartEntry = {
+  clientId: string
+  producto: Producto
+  cantidad: number
+  notas: string
+  ingredientes: Array<{ ingredienteId: number; cantidad: number }>
+}
+
 function AddItemModal({
   open,
   onClose,
@@ -732,53 +750,90 @@ function AddItemModal({
   onError: (msg: string) => void
 }) {
   const { productos, ingredientes } = useMesero()
-  const [selectedProduct, setSelectedProduct] = useState<Producto | null>(null)
-  const [cantidad, setCantidad] = useState(1)
-  const [notas, setNotas] = useState('')
-  const [extras, setExtras] = useState<Record<number, number>>({})
+  const [staging, setStaging] = useState<CartEntry | null>(null)
+  const [cart, setCart] = useState<CartEntry[]>([])
   const [saving, setSaving] = useState(false)
+  const [submitError, setSubmitError] = useState<string | null>(null)
 
+  // Reset all state when modal closes
   useEffect(() => {
-    if (!open) { setSelectedProduct(null); setCantidad(1); setNotas(''); setExtras({}) }
+    if (!open) { setStaging(null); setCart([]); setSaving(false); setSubmitError(null) }
   }, [open])
 
-  const setIngCantidad = (id: number, delta: number) =>
-    setExtras(prev => {
-      const next = Math.max(0, (prev[id] || 0) + delta)
-      if (next === 0) {
-        const copy = { ...prev }
-        delete copy[id]
-        return copy
+  const canConfirm = cart.length >= 1 && !saving
+
+  // Patch staging helpers
+  const setStagingCantidad = (delta: number) =>
+    setStaging(s => s ? { ...s, cantidad: Math.max(1, s.cantidad + delta) } : s)
+
+  const setStagingNotas = (notas: string) =>
+    setStaging(s => s ? { ...s, notas } : s)
+
+  const toggleIngrediente = (ingId: number) =>
+    setStaging(s => {
+      if (!s) return s
+      const exists = s.ingredientes.find(i => i.ingredienteId === ingId)
+      return {
+        ...s,
+        ingredientes: exists
+          ? s.ingredientes.filter(i => i.ingredienteId !== ingId)
+          : [...s.ingredientes, { ingredienteId: ingId, cantidad: 1 }],
       }
-      return { ...prev, [id]: next }
     })
 
-  const handleAdd = async () => {
-    if (!selectedProduct) return
+  const handleSelectProduct = (p: Producto) => {
+    setStaging({
+      clientId: crypto.randomUUID(),
+      producto: p,
+      cantidad: 1,
+      notas: '',
+      ingredientes: [],
+    })
+  }
+
+  const handleAddToCart = () => {
+    if (!staging) return
+    setCart(c => [...c, staging])
+    setStaging(null)
+  }
+
+  const handleDiscard = () => setStaging(null)
+
+  const handleRemoveFromCart = (clientId: string) =>
+    setCart(c => c.filter(e => e.clientId !== clientId))
+
+  const handleConfirm = async () => {
+    if (!canConfirm) return
     setSaving(true)
+    setSubmitError(null)
     try {
-      const item = {
-        productoId: selectedProduct.id,
-        cantidad,
-        notas,
-        ingredientes: Object.entries(extras).map(([id, qty]) => ({ ingredienteId: Number(id), cantidad: qty })),
-      }
-      const updated = await addItem(ordenId, item)
+      const updated = await addItems(ordenId, cart.map(e => ({
+        productoId: e.producto.id,
+        cantidad: e.cantidad,
+        notas: e.notas || undefined,
+        ingredientes: e.ingredientes.length ? e.ingredientes : undefined,
+      })))
       onDone(updated)
+      onClose()
     } catch (e: unknown) {
-      const err = e as { friendlyMessage?: string }
-      onError(err.friendlyMessage || 'Error al agregar')
-    } finally {
+      const err = e as { friendlyMessage?: string; message?: string }
+      const msg = err.friendlyMessage || err.message || 'Error al confirmar'
+      setSubmitError(msg)
+      onError(msg)
       setSaving(false)
     }
   }
 
+  const hasCart = cart.length > 0
+
   return (
-    <Modal open={open} onClose={onClose} title="Agregar producto" size="lg">
-      <div className="space-y-4">
+    <Modal open={open} onClose={onClose} title="Agregar productos" size="lg">
+      <div className="flex flex-col gap-4 overflow-y-auto max-h-[85dvh]">
+
+        {/* 1. Catálogo */}
         <div>
           <p className="text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-2">Productos</p>
-          <div className="max-h-64 overflow-y-auto scrollbar-hide space-y-3">
+          <div className={`overflow-y-auto scrollbar-hide space-y-3 transition-all ${hasCart ? 'max-h-48' : 'max-h-64'}`}>
             {(['PLATO_PREPARADO', 'VENTA_DIRECTA'] as const).map(tipo => {
               const grupo = productos.filter(p => p.tipo === tipo)
               if (grupo.length === 0) return null
@@ -791,8 +846,8 @@ function AddItemModal({
                     {grupo.map(p => (
                       <button
                         key={p.id}
-                        onClick={() => setSelectedProduct(p)}
-                        className={`flex items-center gap-2 p-2.5 rounded-2xl border text-left transition-colors ${selectedProduct?.id === p.id ? 'border-primary bg-primary/10' : 'border-border bg-surface hover:border-primary'}`}
+                        onClick={() => handleSelectProduct(p)}
+                        className={`flex items-center gap-2 p-2.5 rounded-2xl border text-left transition-colors ${staging?.producto.id === p.id ? 'border-primary bg-primary/10' : 'border-border bg-surface hover:border-primary'}`}
                       >
                         {p.imagenUrl ? (
                           <img src={p.imagenUrl} className="w-9 h-9 rounded-xl object-cover flex-shrink-0" alt="" />
@@ -805,7 +860,7 @@ function AddItemModal({
                           <p className="text-xs font-bold text-foreground truncate">{p.nombre}</p>
                           <p className="text-xs text-muted-foreground">${fmt(p.precio)}</p>
                         </div>
-                        {selectedProduct?.id === p.id && <Check size={12} className="text-primary ml-auto flex-shrink-0" />}
+                        {staging?.producto.id === p.id && <Check size={12} className="text-primary ml-auto flex-shrink-0" />}
                       </button>
                     ))}
                   </div>
@@ -815,41 +870,44 @@ function AddItemModal({
           </div>
         </div>
 
-        {selectedProduct && (
-          <>
+        {/* 2. Staging — product being configured */}
+        {staging && (
+          <div className="border-t border-border pt-3 space-y-3">
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Configurar</p>
+            <p className="text-sm font-bold text-foreground">{staging.producto.nombre}</p>
+
+            {/* Cantidad stepper */}
             <div className="flex items-center gap-3">
               <label className="text-sm font-medium text-foreground">Cantidad</label>
               <div className="flex items-center gap-2 ml-auto">
-                <button onClick={() => setCantidad(c => Math.max(1, c - 1))} className="w-8 h-8 rounded-full border border-border text-foreground flex items-center justify-center font-bold">-</button>
-                <span className="font-bold text-foreground w-6 text-center">{cantidad}</span>
-                <button onClick={() => setCantidad(c => c + 1)} className="w-8 h-8 rounded-full bg-primary text-primary-foreground flex items-center justify-center font-bold">+</button>
+                <button onClick={() => setStagingCantidad(-1)} className="w-8 h-8 rounded-full border border-border text-foreground flex items-center justify-center font-bold">-</button>
+                <span className="font-bold text-foreground w-6 text-center">{staging.cantidad}</span>
+                <button onClick={() => setStagingCantidad(1)} className="w-8 h-8 rounded-full bg-primary text-primary-foreground flex items-center justify-center font-bold">+</button>
               </div>
             </div>
 
+            {/* Notas */}
             <div>
               <label className="text-sm font-medium text-foreground">Notas</label>
               <input
                 className="mt-1 w-full bg-surface-sunken border border-input rounded-xl px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
                 placeholder="Instrucciones para este producto..."
-                value={notas}
-                onChange={e => setNotas(e.target.value)}
+                value={staging.notas}
+                onChange={e => setStagingNotas(e.target.value)}
               />
             </div>
 
-            {ingredientes.length > 0 && selectedProduct.tipo === 'PLATO_PREPARADO' && (
+            {/* Extras — only for PLATO_PREPARADO */}
+            {ingredientes.length > 0 && staging.producto.tipo === 'PLATO_PREPARADO' && (
               <div>
                 <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Extras / ingredientes</p>
                 <div className="flex flex-wrap gap-2">
                   {ingredientes.map((ing: Ingrediente) => {
-                    const isSelected = (extras[ing.id] || 0) > 0
+                    const isSelected = staging.ingredientes.some(i => i.ingredienteId === ing.id)
                     return (
                       <button
                         key={ing.id}
-                        onClick={() =>
-                          isSelected
-                            ? setExtras(prev => { const copy = { ...prev }; delete copy[ing.id]; return copy })
-                            : setExtras(prev => ({ ...prev, [ing.id]: 1 }))
-                        }
+                        onClick={() => toggleIngrediente(ing.id)}
                         className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ${isSelected ? 'bg-success border-success text-white' : 'border-border text-muted-foreground hover:border-success'}`}
                       >
                         {ing.imagenUrl ? (
@@ -862,32 +920,73 @@ function AddItemModal({
                     )
                   })}
                 </div>
-                {Object.keys(extras).length > 0 && (
-                  <div className="mt-2 space-y-1.5">
-                    {ingredientes.filter((ing: Ingrediente) => (extras[ing.id] || 0) > 0).map((ing: Ingrediente) => (
-                      <div key={ing.id} className="flex items-center gap-2 px-3 py-1.5 rounded-2xl bg-success/15">
-                        <span className="text-xs text-success font-medium flex-1 truncate">{ing.nombre}</span>
-                        <div className="flex items-center gap-1 flex-shrink-0">
-                          <button onClick={() => setIngCantidad(ing.id, -1)} className="w-6 h-6 rounded-full border border-success/40 bg-surface text-success flex items-center justify-center text-xs font-bold">-</button>
-                          <span className="w-5 text-center text-xs font-bold text-success">{extras[ing.id]}</span>
-                          <button onClick={() => setIngCantidad(ing.id, 1)} className="w-6 h-6 rounded-full bg-success text-white flex items-center justify-center text-xs font-bold">+</button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
               </div>
             )}
-          </>
+
+            {/* Staging action buttons */}
+            <div className="flex gap-2">
+              <button
+                onClick={handleDiscard}
+                className="flex-1 border border-border text-foreground py-2.5 rounded-2xl text-sm font-medium hover:bg-surface-sunken transition-colors"
+              >
+                Descartar
+              </button>
+              <button
+                onClick={handleAddToCart}
+                className="flex-1 bg-success text-white py-2.5 rounded-2xl text-sm font-semibold hover:opacity-90 transition-colors"
+              >
+                Agregar al carrito
+              </button>
+            </div>
+          </div>
         )}
 
-        <button
-          onClick={handleAdd}
-          disabled={!selectedProduct || saving}
-          className="w-full bg-primary hover:opacity-90 disabled:opacity-40 text-primary-foreground py-3 rounded-2xl font-semibold text-sm transition-colors"
-        >
-          {saving ? 'Agregando...' : 'Agregar a la orden'}
-        </button>
+        {/* 3. Cart list */}
+        {hasCart && (
+          <div className="border-t border-border pt-3">
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">En el carrito ({cart.length})</p>
+            <div className="max-h-48 overflow-y-auto scrollbar-hide space-y-1.5">
+              {cart.map(entry => (
+                <div key={entry.clientId} className="flex items-center gap-2 px-3 py-2 rounded-2xl bg-surface-sunken">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-bold text-foreground truncate">
+                      {entry.producto.nombre} <span className="text-muted-foreground">x{entry.cantidad}</span>
+                    </p>
+                    {(entry.notas || entry.ingredientes.length > 0) && (
+                      <p className="text-[10px] text-muted-foreground truncate">
+                        {entry.ingredientes.length > 0 && <span>+extras </span>}
+                        {entry.notas && <span>{entry.notas}</span>}
+                      </p>
+                    )}
+                  </div>
+                  <button
+                    onClick={() => handleRemoveFromCart(entry.clientId)}
+                    className="flex-shrink-0 w-7 h-7 flex items-center justify-center rounded-full text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
+                  >
+                    <Trash2 size={13} />
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* 4. Action bar */}
+        <div className="border-t border-border pt-3 space-y-2">
+          {submitError && (
+            <p className="text-xs text-destructive text-center">{submitError}</p>
+          )}
+          <button
+            onClick={handleConfirm}
+            disabled={!canConfirm}
+            className="w-full bg-primary hover:opacity-90 disabled:opacity-40 text-primary-foreground py-3 rounded-2xl font-semibold text-sm transition-colors"
+          >
+            {saving
+              ? 'Confirmando...'
+              : `Confirmar (${cart.length} producto${cart.length !== 1 ? 's' : ''})`
+            }
+          </button>
+        </div>
       </div>
     </Modal>
   )

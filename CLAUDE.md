@@ -17,7 +17,7 @@ OpenSpec config is at `openspec/config.yaml`.
 - `masterDb()` for `master.*` queries. `withTenant(slug, fn)` for tenant-scoped queries.
 - **Always prefix master schema tables with `master.`** (e.g. `master.tenants`, `master.usuarios`). The connection has no search_path set (PgBouncer constraint).
 - Middleware (`src/middleware.ts`) resolves tenant from subdomain + validates JWT.
-- Page routes: cookie `sirve_session`. API routes: `Authorization: Bearer <token>`.
+- Page routes: cookie `sirva_session`. API routes: `Authorization: Bearer <token>`.
 
 ## Critical Constraints
 

@@ -273,6 +273,14 @@ export async function createOrden(sql: Sql, data: CreateOrdenData): Promise<Orde
       if (!data.mesaId) throw new NotFoundError('Mesa no encontrada')
       const mesa = await sql`SELECT id FROM mesas WHERE id = ${data.mesaId} LIMIT 1`
       if (!mesa[0]) throw new NotFoundError('Mesa no encontrada')
+      const active = await sql`
+        SELECT id FROM ordenes
+        WHERE mesa_id = ${data.mesaId}
+          AND estado NOT IN ('CANCELADA', 'ENTREGADA')
+          AND pagada = false
+        LIMIT 1
+      `
+      if (active[0]) throw new ValidationError('La mesa ya tiene una orden activa')
     }
 
     const [insertedRow] = await sql<{ id: bigint }[]>`
@@ -554,6 +562,57 @@ export async function addItem(sql: Sql, ordenId: number, data: AddItemData): Pro
           INSERT INTO orden_item_ingredientes (item_id, ingrediente_id, cantidad, precio_unitario)
           VALUES (${Number(itemRow.id)}, ${ing.ingredienteId}, ${ing.cantidad}, ${ingRows[0].precio})
         `
+      }
+    }
+
+    await recalcularTotal(sql, ordenId)
+    const result = await buildOrden(sql, ordenId)
+    await sql`COMMIT`
+    return result
+  } catch (e) {
+    await sql`ROLLBACK`
+    throw e
+  }
+}
+
+export async function addItems(sql: Sql, ordenId: number, items: AddItemData[]): Promise<Orden> {
+  await sql`BEGIN`
+  try {
+    const ordenRows = await sql<OrdenRow[]>`
+      SELECT id, estado, pagada FROM ordenes WHERE id = ${ordenId} LIMIT 1
+    `
+    if (!ordenRows[0]) throw new NotFoundError('Orden no encontrada')
+    if (ordenRows[0].estado === 'PAGADA' || ordenRows[0].estado === 'CANCELADA') {
+      throw new ConflictError('No se puede modificar una orden pagada o cancelada')
+    }
+
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i]
+      const label = `(item #${i + 1})`
+
+      const prodRows = await sql<{ id: bigint; precio: string }[]>`
+        SELECT id, precio FROM productos WHERE id = ${item.productoId} LIMIT 1
+      `
+      if (!prodRows[0]) throw new NotFoundError(`Producto no encontrado ${label}`)
+
+      const [itemRow] = await sql<{ id: bigint }[]>`
+        INSERT INTO orden_items (orden_id, producto_id, cantidad, precio_unitario, notas)
+        VALUES (${ordenId}, ${item.productoId}, ${item.cantidad}, ${prodRows[0].precio}, ${item.notas ?? null})
+        RETURNING id
+      `
+
+      if (item.ingredientes && item.ingredientes.length > 0) {
+        for (const ing of item.ingredientes) {
+          const ingRows = await sql<{ id: bigint; precio: string }[]>`
+            SELECT id, precio FROM ingredientes WHERE id = ${ing.ingredienteId} LIMIT 1
+          `
+          if (!ingRows[0]) throw new NotFoundError(`Ingrediente ${ing.ingredienteId} no encontrado ${label}`)
+
+          await sql`
+            INSERT INTO orden_item_ingredientes (item_id, ingrediente_id, cantidad, precio_unitario)
+            VALUES (${Number(itemRow.id)}, ${ing.ingredienteId}, ${ing.cantidad}, ${ingRows[0].precio})
+          `
+        }
       }
     }
 

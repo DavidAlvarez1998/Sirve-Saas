@@ -39,6 +39,9 @@ export const updateEstado = (id: number, estado: EstadoOrden): Promise<Orden> =>
 export const addItem = (id: number, item: AddItemData): Promise<Orden> =>
   api.post<Orden>(`/ordenes/${id}/items`, item).then(r => r.data)
 
+export const addItems = (id: number, items: AddItemData[]): Promise<Orden> =>
+  api.post<Orden>(`/ordenes/${id}/items/batch`, { items }).then(r => r.data)
+
 export const removeItem = (id: number, itemId: number): Promise<Orden> =>
   api.delete<Orden>(`/ordenes/${id}/items/${itemId}`).then(r => r.data)
 

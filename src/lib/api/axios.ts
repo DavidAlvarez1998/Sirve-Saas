@@ -33,7 +33,7 @@ api.interceptors.response.use(
     // 401: clear session and redirect to login
     if (status === 401 && typeof window !== 'undefined') {
       localStorage.removeItem(STORAGE_KEY)
-      document.cookie = 'sirve_session=; SameSite=Lax; Path=/; Max-Age=0'
+      document.cookie = 'sirva_session=; SameSite=Lax; Path=/; Max-Age=0'
       if (!window.location.pathname.startsWith('/login')) {
         window.location.href = '/login'
       }

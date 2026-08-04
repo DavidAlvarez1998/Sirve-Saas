@@ -46,7 +46,7 @@ async function pageMiddleware(req: NextRequest): Promise<NextResponse> {
     return NextResponse.next()
   }
 
-  const cookieRaw = req.cookies.get('sirve_session')?.value
+  const cookieRaw = req.cookies.get('sirva_session')?.value
   let session: SessionCookie | null = null
   if (cookieRaw) {
     try {
@@ -69,7 +69,7 @@ async function pageMiddleware(req: NextRequest): Promise<NextResponse> {
   } catch {
     const url = req.nextUrl.clone()
     url.pathname = '/login'
-    req.cookies.delete('sirve_session')
+    req.cookies.delete('sirva_session')
     return NextResponse.redirect(url)
   }
 
