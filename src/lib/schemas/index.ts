@@ -89,3 +89,7 @@ export const CompletarSetupSchema = z.object({
   email: z.string().email(),
   password: z.string().min(6),
 })
+
+export const UpdateTenantExpirySchema = z.object({
+  fechaVencimiento: z.string().datetime().nullable(),
+})

@@ -12,6 +12,7 @@ import {
   Users,
 } from 'lucide-react'
 import { getTenants, desactivarTenant } from '@/lib/api/tenants'
+import ExpiryModal from '@/components/superadmin/ExpiryModal'
 import ConfirmDialog from '@/components/ui/ConfirmDialog'
 import { Button } from '@/components/ui/Button'
 import { Badge } from '@/components/ui/Badge'
@@ -25,12 +26,39 @@ interface ConfirmState {
   slug: string
 }
 
+function ExpiryBadge({ fechaVencimiento }: { fechaVencimiento?: string | null }) {
+  if (!fechaVencimiento) {
+    return <span className="text-muted-foreground text-xs">Sin vencimiento</span>
+  }
+  const exp = new Date(fechaVencimiento)
+  const now = new Date()
+  const vencida = exp < now
+  const diasRestantes = Math.floor((exp.getTime() - now.getTime()) / 86_400_000)
+
+  if (vencida) {
+    return <Badge variant="destructive">Vencida</Badge>
+  }
+  if (diasRestantes <= 5) {
+    return (
+      <Badge variant="warning">
+        Vence en {diasRestantes} d
+      </Badge>
+    )
+  }
+  return (
+    <span className="text-muted-foreground text-xs">
+      Vence: {exp.toLocaleDateString('es-AR', { day: '2-digit', month: 'short' })}
+    </span>
+  )
+}
+
 export default function TenantListPage() {
   const router = useRouter()
   const [tenants, setTenants] = useState<Tenant[]>([])
   const [loading, setLoading] = useState(true)
   const [confirm, setConfirm] = useState<ConfirmState | null>(null)
   const [copiedId, setCopiedId] = useState<number | null>(null)
+  const [modalTenant, setModalTenant] = useState<Tenant | null>(null)
 
   const copyUrl = (id: number, url: string) => {
     navigator.clipboard.writeText(url)
@@ -98,6 +126,7 @@ export default function TenantListPage() {
                 <th className="px-6 py-4 text-left">Slug</th>
                 <th className="px-6 py-4 text-left">Nombre</th>
                 <th className="px-6 py-4 text-left">Estado</th>
+                <th className="px-6 py-4 text-left">Vencimiento</th>
                 <th className="px-6 py-4 text-left">Setup pendiente</th>
                 <th className="px-6 py-4 text-left">Creado</th>
                 <th className="px-6 py-4 text-left">Acciones</th>
@@ -125,6 +154,9 @@ export default function TenantListPage() {
                         <XCircle size={12} /> Inactivo
                       </Badge>
                     )}
+                  </td>
+                  <td className="px-6 py-4">
+                    <ExpiryBadge fechaVencimiento={t.fechaVencimiento} />
                   </td>
                   <td className="px-6 py-4">
                     {t.setupUrl ? (
@@ -172,6 +204,13 @@ export default function TenantListPage() {
                       >
                         <Users size={13} /> Ver detalle
                       </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setModalTenant(t)}
+                      >
+                        Editar vencimiento
+                      </Button>
                       {t.activo && (
                         <Button
                           variant="destructive"
@@ -197,6 +236,18 @@ export default function TenantListPage() {
           message={`¿Seguro que querés desactivar "${confirm.slug}"? Los usuarios de ese restaurante no podrán acceder.`}
           onConfirm={() => handleDesactivar(confirm.id, confirm.slug)}
           onCancel={() => setConfirm(null)}
+        />
+      )}
+
+      {modalTenant && (
+        <ExpiryModal
+          tenant={modalTenant}
+          open={!!modalTenant}
+          onClose={() => setModalTenant(null)}
+          onSuccess={(updated) => {
+            setTenants(prev => prev.map(t => t.slug === updated.slug ? updated : t))
+            setModalTenant(null)
+          }}
         />
       )}
 

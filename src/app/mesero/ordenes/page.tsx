@@ -830,13 +830,14 @@ function AddItemModal({
     <Modal open={open} onClose={onClose} title="Agregar productos" size="lg">
       <div className="flex flex-col gap-4 overflow-y-auto max-h-[85dvh]">
 
-        {/* 1. Catálogo */}
+        {/* 1. Catálogo + config inline */}
         <div>
           <p className="text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-2">Productos</p>
-          <div className={`overflow-y-auto scrollbar-hide space-y-3 transition-all ${hasCart ? 'max-h-48' : 'max-h-64'}`}>
+          <div className="space-y-3">
             {(['PLATO_PREPARADO', 'VENTA_DIRECTA'] as const).map(tipo => {
               const grupo = productos.filter(p => p.tipo === tipo)
               if (grupo.length === 0) return null
+              const isConfigurando = staging?.producto.tipo === tipo
               return (
                 <div key={tipo}>
                   <p className={`text-[10px] font-bold uppercase tracking-wider mb-1.5 px-1 ${tipo === 'PLATO_PREPARADO' ? 'text-warning' : 'text-info'}`}>
@@ -864,82 +865,79 @@ function AddItemModal({
                       </button>
                     ))}
                   </div>
+
+                  {/* ── Config panel inline, debajo del grupo del producto seleccionado ── */}
+                  {isConfigurando && staging && (
+                    <div className="mt-2 rounded-2xl border border-primary/30 bg-primary/5 p-3 space-y-3">
+                      {/* Cantidad stepper */}
+                      <div className="flex items-center gap-3">
+                        <label className="text-sm font-medium text-foreground">Cantidad</label>
+                        <div className="flex items-center gap-2 ml-auto">
+                          <button onClick={() => setStagingCantidad(-1)} className="w-8 h-8 rounded-full border border-border text-foreground flex items-center justify-center font-bold">-</button>
+                          <span className="font-bold text-foreground w-6 text-center">{staging.cantidad}</span>
+                          <button onClick={() => setStagingCantidad(1)} className="w-8 h-8 rounded-full bg-primary text-primary-foreground flex items-center justify-center font-bold">+</button>
+                        </div>
+                      </div>
+
+                      {/* Notas */}
+                      <div>
+                        <label className="text-sm font-medium text-foreground">Notas</label>
+                        <input
+                          className="mt-1 w-full bg-surface-sunken border border-input rounded-xl px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+                          placeholder="Instrucciones para este producto..."
+                          value={staging.notas}
+                          onChange={e => setStagingNotas(e.target.value)}
+                        />
+                      </div>
+
+                      {/* Extras — only for PLATO_PREPARADO */}
+                      {ingredientes.length > 0 && staging.producto.tipo === 'PLATO_PREPARADO' && (
+                        <div>
+                          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Extras / ingredientes</p>
+                          <div className="flex flex-wrap gap-2">
+                            {ingredientes.map((ing: Ingrediente) => {
+                              const isSelected = staging.ingredientes.some(i => i.ingredienteId === ing.id)
+                              return (
+                                <button
+                                  key={ing.id}
+                                  onClick={() => toggleIngrediente(ing.id)}
+                                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ${isSelected ? 'bg-success border-success text-white' : 'border-border text-muted-foreground hover:border-success'}`}
+                                >
+                                  {ing.imagenUrl ? (
+                                    <img src={ing.imagenUrl} className="w-4 h-4 rounded-full object-cover" alt="" />
+                                  ) : (
+                                    <Salad size={12} />
+                                  )}
+                                  +{ing.nombre} ${fmt(ing.precio)}
+                                </button>
+                              )
+                            })}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Action buttons */}
+                      <div className="flex gap-2">
+                        <button
+                          onClick={handleDiscard}
+                          className="flex-1 border border-border text-foreground py-2.5 rounded-2xl text-sm font-medium hover:bg-surface-sunken transition-colors"
+                        >
+                          Descartar
+                        </button>
+                        <button
+                          onClick={handleAddToCart}
+                          className="flex-1 bg-success text-white py-2.5 rounded-2xl text-sm font-semibold hover:opacity-90 transition-colors"
+                        >
+                          Agregar
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )
             })}
           </div>
         </div>
-
-        {/* 2. Staging — product being configured */}
-        {staging && (
-          <div className="border-t border-border pt-3 space-y-3">
-            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Configurar</p>
-            <p className="text-sm font-bold text-foreground">{staging.producto.nombre}</p>
-
-            {/* Cantidad stepper */}
-            <div className="flex items-center gap-3">
-              <label className="text-sm font-medium text-foreground">Cantidad</label>
-              <div className="flex items-center gap-2 ml-auto">
-                <button onClick={() => setStagingCantidad(-1)} className="w-8 h-8 rounded-full border border-border text-foreground flex items-center justify-center font-bold">-</button>
-                <span className="font-bold text-foreground w-6 text-center">{staging.cantidad}</span>
-                <button onClick={() => setStagingCantidad(1)} className="w-8 h-8 rounded-full bg-primary text-primary-foreground flex items-center justify-center font-bold">+</button>
-              </div>
-            </div>
-
-            {/* Notas */}
-            <div>
-              <label className="text-sm font-medium text-foreground">Notas</label>
-              <input
-                className="mt-1 w-full bg-surface-sunken border border-input rounded-xl px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-                placeholder="Instrucciones para este producto..."
-                value={staging.notas}
-                onChange={e => setStagingNotas(e.target.value)}
-              />
-            </div>
-
-            {/* Extras — only for PLATO_PREPARADO */}
-            {ingredientes.length > 0 && staging.producto.tipo === 'PLATO_PREPARADO' && (
-              <div>
-                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Extras / ingredientes</p>
-                <div className="flex flex-wrap gap-2">
-                  {ingredientes.map((ing: Ingrediente) => {
-                    const isSelected = staging.ingredientes.some(i => i.ingredienteId === ing.id)
-                    return (
-                      <button
-                        key={ing.id}
-                        onClick={() => toggleIngrediente(ing.id)}
-                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ${isSelected ? 'bg-success border-success text-white' : 'border-border text-muted-foreground hover:border-success'}`}
-                      >
-                        {ing.imagenUrl ? (
-                          <img src={ing.imagenUrl} className="w-4 h-4 rounded-full object-cover" alt="" />
-                        ) : (
-                          <Salad size={12} />
-                        )}
-                        +{ing.nombre} ${fmt(ing.precio)}
-                      </button>
-                    )
-                  })}
-                </div>
-              </div>
-            )}
-
-            {/* Staging action buttons */}
-            <div className="flex gap-2">
-              <button
-                onClick={handleDiscard}
-                className="flex-1 border border-border text-foreground py-2.5 rounded-2xl text-sm font-medium hover:bg-surface-sunken transition-colors"
-              >
-                Descartar
-              </button>
-              <button
-                onClick={handleAddToCart}
-                className="flex-1 bg-success text-white py-2.5 rounded-2xl text-sm font-semibold hover:opacity-90 transition-colors"
-              >
-                Agregar al carrito
-              </button>
-            </div>
-          </div>
-        )}
 
         {/* 3. Cart list */}
         {hasCart && (

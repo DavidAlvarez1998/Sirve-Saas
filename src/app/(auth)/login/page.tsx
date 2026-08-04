@@ -2,6 +2,7 @@
 
 import { useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 import { useAuth } from '../../../context/AuthContext'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
@@ -48,7 +49,13 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background">
+    <div className="min-h-screen flex flex-col items-center justify-center bg-background gap-4">
+      <Link
+        href="/"
+        className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+      >
+        ← Ir al inicio
+      </Link>
       <div className="bg-surface rounded-2xl shadow-md p-8 w-full max-w-sm border border-border">
         <h1 className="text-2xl font-bold text-foreground mb-6 text-center">
           Sirva

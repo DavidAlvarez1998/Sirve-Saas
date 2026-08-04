@@ -1,10 +1,11 @@
 import type { NextRequest } from 'next/server'
 import { handle, apiSuccess, getContext } from '@/lib/http'
-import { ValidationError } from '@/lib/errors'
-import { withTenant } from '@/lib/db'
+import { ValidationError, ForbiddenError } from '@/lib/errors'
+import { withTenant, masterDb } from '@/lib/db'
 import { broadcastOrden } from '@/lib/realtime'
 import { CreateOrdenSchema } from '@/lib/schemas'
 import * as OrdenService from '@/lib/services/ordenes'
+import * as TenantsService from '@/lib/services/tenants'
 
 export const runtime = 'nodejs'
 
@@ -19,6 +20,10 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   const { tenantSlug } = getContext(req)
   return handle(async () => {
+    // Subscription expiry check — must run before withTenant()
+    const expired = await TenantsService.isTenantExpired(masterDb(), tenantSlug)
+    if (expired) throw new ForbiddenError('Suscripción vencida. No es posible crear órdenes.')
+
     const body = await req.json()
     const parsed = CreateOrdenSchema.safeParse(body)
     if (!parsed.success) throw new ValidationError(parsed.error.errors[0]?.message ?? 'Invalid input')

@@ -1,6 +1,7 @@
 import type { Sql } from 'postgres'
 import { ConflictError, NotFoundError } from '@/lib/errors'
 import { sendInvitationEmail } from '@/lib/email'
+import type { TenantExpiryState } from '@/types'
 
 export interface Tenant {
   id: number
@@ -10,6 +11,7 @@ export interface Tenant {
   dbSchema: string
   createdAt: string
   setupUrl?: string
+  fechaVencimiento?: string | null
 }
 
 export interface CreateTenantData {
@@ -25,6 +27,7 @@ interface TenantRow {
   activo: boolean
   db_schema: string
   created_at: Date
+  fecha_vencimiento: Date | null
 }
 
 function toTenant(row: TenantRow, setupUrl?: string): Tenant {
@@ -35,13 +38,14 @@ function toTenant(row: TenantRow, setupUrl?: string): Tenant {
     activo: row.activo,
     dbSchema: row.db_schema,
     createdAt: row.created_at.toISOString(),
+    fechaVencimiento: row.fecha_vencimiento ? row.fecha_vencimiento.toISOString() : null,
     ...(setupUrl !== undefined ? { setupUrl } : {}),
   }
 }
 
 export async function listTenants(sql: Sql): Promise<Tenant[]> {
   const rows = await sql<TenantRow[]>`
-    SELECT id, slug, nombre, activo, db_schema, created_at
+    SELECT id, slug, nombre, activo, db_schema, created_at, fecha_vencimiento
     FROM master.tenants
     ORDER BY created_at DESC
   `
@@ -50,7 +54,7 @@ export async function listTenants(sql: Sql): Promise<Tenant[]> {
 
 export async function getTenant(sql: Sql, slug: string): Promise<Tenant> {
   const rows = await sql<TenantRow[]>`
-    SELECT id, slug, nombre, activo, db_schema, created_at
+    SELECT id, slug, nombre, activo, db_schema, created_at, fecha_vencimiento
     FROM master.tenants
     WHERE slug = ${slug}
     LIMIT 1
@@ -68,7 +72,7 @@ export async function createTenant(sql: Sql, data: CreateTenantData): Promise<Te
   const rows = await sql<TenantRow[]>`
     INSERT INTO master.tenants (slug, nombre, activo, db_schema)
     VALUES (${data.slug}, ${data.nombre}, true, ${'tenant_' + data.slug})
-    RETURNING id, slug, nombre, activo, db_schema, created_at
+    RETURNING id, slug, nombre, activo, db_schema, created_at, fecha_vencimiento
   `
   const tenant = rows[0]
 
@@ -97,8 +101,63 @@ export async function desactivarTenant(sql: Sql, id: number): Promise<Tenant> {
   const rows = await sql<TenantRow[]>`
     UPDATE master.tenants SET activo = false
     WHERE id = ${id}
-    RETURNING id, slug, nombre, activo, db_schema, created_at
+    RETURNING id, slug, nombre, activo, db_schema, created_at, fecha_vencimiento
   `
   if (rows.length === 0) throw new NotFoundError(`Tenant id=${id} not found`)
   return toTenant(rows[0])
+}
+
+export async function updateTenantExpiry(
+  sql: Sql,
+  slug: string,
+  fecha: Date | null
+): Promise<Tenant> {
+  const rows = await sql<TenantRow[]>`
+    UPDATE master.tenants
+    SET fecha_vencimiento = ${fecha}
+    WHERE slug = ${slug}
+    RETURNING id, slug, nombre, activo, db_schema, created_at, fecha_vencimiento
+  `
+  if (rows.length === 0) throw new NotFoundError(`Tenant '${slug}' not found`)
+  return toTenant(rows[0])
+}
+
+export async function getTenantExpiryState(
+  sql: Sql,
+  slug: string
+): Promise<TenantExpiryState> {
+  const rows = await sql<{
+    fecha_vencimiento: Date | null
+    dias_restantes: number | null
+    vencida: boolean
+  }[]>`
+    SELECT
+      fecha_vencimiento,
+      CASE
+        WHEN fecha_vencimiento IS NULL THEN NULL
+        ELSE FLOOR(EXTRACT(EPOCH FROM (fecha_vencimiento - NOW())) / 86400)::int
+      END AS dias_restantes,
+      (fecha_vencimiento IS NOT NULL AND fecha_vencimiento < NOW()) AS vencida
+    FROM master.tenants
+    WHERE slug = ${slug}
+    LIMIT 1
+  `
+  if (rows.length === 0) throw new NotFoundError(`Tenant '${slug}' not found`)
+  const row = rows[0]
+  return {
+    fechaVencimiento: row.fecha_vencimiento ? row.fecha_vencimiento.toISOString() : null,
+    diasRestantes: row.dias_restantes,
+    vencida: row.vencida,
+  }
+}
+
+export async function isTenantExpired(sql: Sql, slug: string): Promise<boolean> {
+  const rows = await sql<{ vencida: boolean }[]>`
+    SELECT (fecha_vencimiento IS NOT NULL AND fecha_vencimiento < NOW()) AS vencida
+    FROM master.tenants
+    WHERE slug = ${slug}
+    LIMIT 1
+  `
+  if (rows.length === 0) return false
+  return rows[0].vencida
 }

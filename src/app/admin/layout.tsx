@@ -3,6 +3,7 @@
 import { LayoutDashboard, Package, Salad, TableProperties, BarChart2, Users } from 'lucide-react'
 import AppLayout from '@/components/layouts/AppLayout'
 import RoleSwitcher from '@/components/admin/RoleSwitcher'
+import ExpiryBanner from '@/components/admin/ExpiryBanner'
 
 const navItems = [
   { href: '/admin', icon: <LayoutDashboard size={18} />, label: 'Inicio', exact: true },
@@ -21,6 +22,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       navItems={navItems}
       sidebarFooter={<RoleSwitcher variant="sidebar" />}
     >
+      <ExpiryBanner />
       {children}
     </AppLayout>
   )

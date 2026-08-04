@@ -1,5 +1,6 @@
 'use client'
 
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { UtensilsCrossed, ChefHat } from 'lucide-react'
 import { useAuth } from '@/context/AuthContext'
@@ -10,11 +11,13 @@ interface RoleSwitcherProps {
 
 export default function RoleSwitcher({ variant }: RoleSwitcherProps) {
   const { hasRole } = useAuth()
+  const [mounted, setMounted] = useState(false)
+  useEffect(() => setMounted(true), [])
 
   const hasMesero = hasRole('MESERO')
   const hasCocina = hasRole('COCINA')
 
-  if (!hasMesero && !hasCocina) return null
+  if (!mounted || (!hasMesero && !hasCocina)) return null
 
   if (variant === 'sidebar') {
     return (

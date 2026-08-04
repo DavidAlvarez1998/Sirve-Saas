@@ -151,6 +151,13 @@ export interface Tenant {
   activo: boolean
   setupUrl?: string | null
   createdAt?: string | null
+  fechaVencimiento?: string | null
+}
+
+export interface TenantExpiryState {
+  fechaVencimiento: string | null
+  diasRestantes: number | null
+  vencida: boolean
 }
 
 export interface CreateTenantData {

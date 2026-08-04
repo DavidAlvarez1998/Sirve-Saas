@@ -4,12 +4,7 @@
  */
 export function formatCurrency(n: number): string {
   if (n == null || isNaN(n)) return '$ 0'
-  return new Intl.NumberFormat('es-AR', {
-    style: 'currency',
-    currency: 'ARS',
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  }).format(Math.round(n))
+  return '$ ' + Math.round(n).toString().replace(/\B(?=(\d{3})+(?!\d))/g, '.')
 }
 
 /**
@@ -26,11 +21,7 @@ export function formatDate(iso: string): string {
   }).format(date)
 }
 
-/**
- * Legacy alias — formats a number with es-CO locale rounding.
- * Kept for compatibility during migration.
- */
 export function fmt(v: number | null | undefined): string {
   if (v == null) return '0'
-  return Math.round(v).toLocaleString('es-CO')
+  return Math.round(v).toString().replace(/\B(?=(\d{3})+(?!\d))/g, '.')
 }

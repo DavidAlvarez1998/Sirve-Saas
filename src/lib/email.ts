@@ -11,7 +11,7 @@ export async function sendInvitationEmail(params: {
   }
   const resend = new Resend(process.env.RESEND_API_KEY)
   await resend.emails.send({
-    from: 'noreply@sirve.app',
+    from: 'noreply@sirvaapp.com',
     to: params.to,
     subject: `Invitación para configurar ${params.tenantNombre} en Sirva`,
     html: `<p>Hacé click en el siguiente link para completar la configuración:</p><a href="${params.setupUrl}">${params.setupUrl}</a>`,

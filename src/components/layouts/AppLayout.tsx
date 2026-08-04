@@ -57,6 +57,7 @@ export function AppLayout({
   panelKicker,
   navItems,
   sidebarFooter,
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   mobileNavExtra,
   children,
 }: AppLayoutProps) {
