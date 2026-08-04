@@ -205,23 +205,30 @@ export async function buildOrden(sql: Sql, id: number): Promise<Orden> {
   `
   if (!rows[0]) throw new NotFoundError('Orden no encontrada')
 
-  const itemRows = await sql<ItemRow[]>`
-    SELECT oi.id, oi.orden_id, oi.producto_id, p.nombre AS nombre_producto,
-           oi.cantidad, oi.precio_unitario, oi.notas
-    FROM orden_items oi
-    JOIN productos p ON p.id = oi.producto_id
-    WHERE oi.orden_id = ${id}
-    ORDER BY oi.id
-  `
-
-  const ingRows = await sql<IngredienteRow[]>`
-    SELECT oii.id, oii.item_id, oii.ingrediente_id, ing.nombre,
-           oii.cantidad, oii.precio_unitario
-    FROM orden_item_ingredientes oii
-    JOIN ingredientes ing ON ing.id = oii.ingrediente_id
-    WHERE oii.item_id IN (SELECT id FROM orden_items WHERE orden_id = ${id})
-    ORDER BY oii.id
-  `
+  const [itemRows, ingRows, pagoRows] = await Promise.all([
+    sql<ItemRow[]>`
+      SELECT oi.id, oi.orden_id, oi.producto_id, p.nombre AS nombre_producto,
+             oi.cantidad, oi.precio_unitario, oi.notas
+      FROM orden_items oi
+      JOIN productos p ON p.id = oi.producto_id
+      WHERE oi.orden_id = ${id}
+      ORDER BY oi.id
+    `,
+    sql<IngredienteRow[]>`
+      SELECT oii.id, oii.item_id, oii.ingrediente_id, ing.nombre,
+             oii.cantidad, oii.precio_unitario
+      FROM orden_item_ingredientes oii
+      JOIN ingredientes ing ON ing.id = oii.ingrediente_id
+      WHERE oii.item_id IN (SELECT id FROM orden_items WHERE orden_id = ${id})
+      ORDER BY oii.id
+    `,
+    sql<PagoRow[]>`
+      SELECT id, orden_id, monto_pagado, metodo_pago, propina, fecha_pago
+      FROM pagos
+      WHERE orden_id = ${id}
+      ORDER BY id
+    `,
+  ])
 
   const ingByItem = new Map<number, OrdenItemIngrediente[]>()
   for (const ir of ingRows) {
@@ -233,13 +240,6 @@ export async function buildOrden(sql: Sql, id: number): Promise<Orden> {
   const items = itemRows.map((ir) =>
     toItem(ir, ingByItem.get(Number(ir.id)) ?? [])
   )
-
-  const pagoRows = await sql<PagoRow[]>`
-    SELECT id, orden_id, monto_pagado, metodo_pago, propina, fecha_pago
-    FROM pagos
-    WHERE orden_id = ${id}
-    ORDER BY id
-  `
 
   return toOrden(rows[0], items, pagoRows.map(toPago))
 }
