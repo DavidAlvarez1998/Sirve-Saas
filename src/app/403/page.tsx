@@ -35,7 +35,7 @@ export default function ForbiddenPage() {
         </p>
         <button
           onClick={handleBack}
-          className="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-6 rounded-lg transition"
+          className="bg-primary hover:bg-primary-hover text-primary-foreground font-semibold py-2 px-6 rounded-lg transition"
         >
           Volver al inicio
         </button>

@@ -9,6 +9,35 @@ interface ImageUploadProps {
   label?: string
 }
 
+async function compressImage(file: File): Promise<File> {
+  if (file.size < 500 * 1024) return file
+  return new Promise((resolve) => {
+    const img = new window.Image()
+    const blobUrl = URL.createObjectURL(file)
+    img.onload = () => {
+      URL.revokeObjectURL(blobUrl)
+      const MAX = 1200
+      let { width, height } = img
+      if (width > MAX || height > MAX) {
+        const ratio = Math.min(MAX / width, MAX / height)
+        width = Math.round(width * ratio)
+        height = Math.round(height * ratio)
+      }
+      const canvas = document.createElement('canvas')
+      canvas.width = width
+      canvas.height = height
+      canvas.getContext('2d')!.drawImage(img, 0, 0, width, height)
+      canvas.toBlob(
+        (blob) => resolve(blob ? new File([blob], file.name, { type: 'image/jpeg' }) : file),
+        'image/jpeg',
+        0.82,
+      )
+    }
+    img.onerror = () => { URL.revokeObjectURL(blobUrl); resolve(file) }
+    img.src = blobUrl
+  })
+}
+
 export default function ImageUpload({ value, onChange, label = 'Imagen' }: ImageUploadProps) {
   const ref = useRef<HTMLInputElement>(null)
   const [localPreview, setLocalPreview] = useState<string | null>(null)
@@ -17,12 +46,13 @@ export default function ImageUpload({ value, onChange, label = 'Imagen' }: Image
     setLocalPreview(null)
   }, [value])
 
-  const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
     setLocalPreview(URL.createObjectURL(file))
-    onChange(file)
     e.target.value = ''
+    const compressed = await compressImage(file)
+    onChange(compressed)
   }
 
   const handleRemove = (e: React.MouseEvent) => {

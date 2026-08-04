@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { createOrden } from '../../lib/api/ordenes'
 import Modal from '../../components/ui/Modal'
@@ -14,6 +14,7 @@ export default function MeseroMesas() {
   const [modalOpen, setModalOpen] = useState(false)
   const [selectedMesa, setSelectedMesa] = useState<Mesa | null>(null)
   const [saving, setSaving] = useState(false)
+  const submittingRef = useRef(false)
   const router = useRouter()
 
   const mesaOcupada = (id: number) =>
@@ -42,7 +43,8 @@ export default function MeseroMesas() {
   }
 
   const handleCrearOrden = async () => {
-    if (!selectedMesa) return
+    if (!selectedMesa || submittingRef.current) return
+    submittingRef.current = true
     setSaving(true)
     try {
       const orden = await createOrden({ tipoOrden: 'MESA', mesaId: selectedMesa.id })
@@ -56,6 +58,7 @@ export default function MeseroMesas() {
       const err = e as { friendlyMessage?: string }
       toast.error(err.friendlyMessage || 'Error al crear orden')
     } finally {
+      submittingRef.current = false
       setSaving(false)
     }
   }
@@ -70,7 +73,7 @@ export default function MeseroMesas() {
         </div>
         <button
           onClick={() => { setSelectedMesa(null); setModalOpen(true) }}
-          className="flex items-center gap-2 bg-sky-500 hover:bg-sky-600 text-white px-4 py-2.5 rounded-2xl text-sm font-semibold shadow transition"
+          className="flex items-center gap-2 bg-primary hover:bg-primary-hover text-primary-foreground px-4 py-2.5 rounded-2xl text-sm font-semibold shadow transition"
         >
           <Plus size={16} /> Para llevar
         </button>
@@ -89,10 +92,10 @@ export default function MeseroMesas() {
                 className={`rounded-3xl p-4 flex flex-col items-center gap-2 shadow-sm border transition active:scale-95 ${
                   ocupada
                     ? 'bg-orange-500 border-orange-400 text-white'
-                    : 'bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700 hover:border-sky-500 text-slate-600 dark:text-slate-300'
+                    : 'bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700 hover:border-primary text-slate-600 dark:text-slate-300'
                 }`}
               >
-                <TableProperties size={24} className={ocupada ? 'text-white' : 'text-sky-400'} />
+                <TableProperties size={24} className={ocupada ? 'text-white' : 'text-primary'} />
                 <span className="font-bold text-sm">{m.numero}</span>
                 <span className={`text-[10px] font-medium ${ocupada ? 'text-orange-100' : 'text-slate-400 dark:text-slate-500'}`}>
                   {ocupada ? 'Ocupada' : 'Libre'}
@@ -169,7 +172,7 @@ function OrdenTipoSelector({ mesa, saving, onCrear, onOtroTipo }: OrdenTipoSelec
                 onClick={() => setTipo(t)}
                 className={`flex-1 py-2.5 rounded-xl text-xs font-semibold border transition ${
                   tipo === t
-                    ? 'bg-sky-500 border-sky-500 text-white'
+                    ? 'bg-primary border-primary text-primary-foreground'
                     : 'border-slate-300 dark:border-slate-600 text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'
                 }`}
               >
@@ -180,9 +183,9 @@ function OrdenTipoSelector({ mesa, saving, onCrear, onOtroTipo }: OrdenTipoSelec
         </div>
       )}
       {mesa && (
-        <p className="text-sm text-slate-600 dark:text-slate-300">
+        <p className="text-sm text-center text-muted-foreground pb-2">
           Se creará una orden para{' '}
-          <strong className="text-slate-900 dark:text-white">Mesa {mesa.numero}</strong>
+          <strong className="text-foreground">Mesa {mesa.numero}</strong>
         </p>
       )}
       {tipo !== 'MESA' && (
@@ -190,7 +193,7 @@ function OrdenTipoSelector({ mesa, saving, onCrear, onOtroTipo }: OrdenTipoSelec
           <div>
             <label className="text-sm font-medium text-slate-600 dark:text-slate-300">Nombre cliente</label>
             <input
-              className="mt-1 w-full bg-slate-200 dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-xl px-3 py-2.5 text-sm text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-sky-400"
+              className="mt-1 w-full bg-slate-200 dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-xl px-3 py-2.5 text-sm text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-ring"
               value={nombre}
               onChange={e => setNombre(e.target.value)}
               placeholder="Opcional"
@@ -199,7 +202,7 @@ function OrdenTipoSelector({ mesa, saving, onCrear, onOtroTipo }: OrdenTipoSelec
           <div>
             <label className="text-sm font-medium text-slate-600 dark:text-slate-300">Teléfono</label>
             <input
-              className="mt-1 w-full bg-slate-200 dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-xl px-3 py-2.5 text-sm text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-sky-400"
+              className="mt-1 w-full bg-slate-200 dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-xl px-3 py-2.5 text-sm text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-ring"
               value={telefono}
               onChange={e => setTelefono(e.target.value)}
               placeholder="Opcional"
@@ -209,7 +212,7 @@ function OrdenTipoSelector({ mesa, saving, onCrear, onOtroTipo }: OrdenTipoSelec
             <div>
               <label className="text-sm font-medium text-slate-600 dark:text-slate-300">Dirección *</label>
               <input
-                className="mt-1 w-full bg-slate-200 dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-xl px-3 py-2.5 text-sm text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-sky-400"
+                className="mt-1 w-full bg-slate-200 dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-xl px-3 py-2.5 text-sm text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-ring"
                 value={direccion}
                 onChange={e => setDireccion(e.target.value)}
                 placeholder="Calle, número..."
@@ -221,7 +224,7 @@ function OrdenTipoSelector({ mesa, saving, onCrear, onOtroTipo }: OrdenTipoSelec
       <button
         onClick={handleCrear}
         disabled={saving}
-        className="w-full bg-sky-500 hover:bg-sky-600 disabled:opacity-50 text-white py-3 rounded-2xl font-semibold text-sm transition"
+        className="w-full bg-primary hover:bg-primary-hover disabled:opacity-50 text-primary-foreground py-3 rounded-2xl font-semibold text-sm transition"
       >
         {saving ? 'Creando...' : 'Crear orden'}
       </button>

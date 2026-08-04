@@ -32,7 +32,7 @@ export default function AdminDashboard() {
   const cards = [
     { label: 'Productos', value: stats.productos, icon: Package, color: 'bg-orange-500', path: '/admin/productos' },
     { label: 'Ingredientes', value: stats.ingredientes, icon: Salad, color: 'bg-emerald-500', path: '/admin/ingredientes' },
-    { label: 'Mesas', value: stats.mesas, icon: TableProperties, color: 'bg-sky-500', path: '/admin/mesas' },
+    { label: 'Mesas', value: stats.mesas, icon: TableProperties, color: 'bg-primary', path: '/admin/mesas' },
     { label: 'Órdenes hoy', value: stats.ordenes, icon: ShoppingBag, color: 'bg-violet-500', path: '/admin/reportes' },
   ]
 

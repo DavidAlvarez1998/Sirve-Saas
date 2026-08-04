@@ -5,8 +5,8 @@ import { Toaster } from 'sonner'
 import './globals.css'
 
 export const metadata: Metadata = {
-  title: 'Sirve',
-  description: 'Sistema de gestión Sirve',
+  title: 'Sirva',
+  description: 'Sistema de gestión Sirva',
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

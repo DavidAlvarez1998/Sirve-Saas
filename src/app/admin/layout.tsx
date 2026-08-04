@@ -7,10 +7,10 @@ import RoleSwitcher from '@/components/admin/RoleSwitcher'
 const navItems = [
   { href: '/admin', icon: <LayoutDashboard size={18} />, label: 'Inicio', exact: true },
   { href: '/admin/productos', icon: <Package size={18} />, label: 'Productos' },
-  { href: '/admin/ingredientes', icon: <Salad size={18} />, label: 'Ingredientes' },
   { href: '/admin/mesas', icon: <TableProperties size={18} />, label: 'Mesas' },
   { href: '/admin/reportes', icon: <BarChart2 size={18} />, label: 'Reportes' },
-  { href: '/admin/usuarios', icon: <Users size={18} />, label: 'Usuarios' },
+  { href: '/admin/ingredientes', icon: <Salad size={18} />, label: 'Ingredientes', mobileHidden: true },
+  { href: '/admin/usuarios', icon: <Users size={18} />, label: 'Usuarios', mobileHidden: true },
 ]
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
@@ -20,7 +20,6 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       panelLabel="Administrador"
       navItems={navItems}
       sidebarFooter={<RoleSwitcher variant="sidebar" />}
-      mobileNavExtra={<RoleSwitcher variant="bottom-nav" />}
     >
       {children}
     </AppLayout>

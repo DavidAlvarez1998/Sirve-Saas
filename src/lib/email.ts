@@ -13,7 +13,7 @@ export async function sendInvitationEmail(params: {
   await resend.emails.send({
     from: 'noreply@sirve.app',
     to: params.to,
-    subject: `Invitación para configurar ${params.tenantNombre} en Sirve`,
+    subject: `Invitación para configurar ${params.tenantNombre} en Sirva`,
     html: `<p>Hacé click en el siguiente link para completar la configuración:</p><a href="${params.setupUrl}">${params.setupUrl}</a>`,
   })
 }

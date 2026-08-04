@@ -14,3 +14,12 @@ export async function POST(req: NextRequest) {
     return apiSuccess(result, 201)
   })
 }
+
+export async function DELETE(req: NextRequest) {
+  return handle(async () => {
+    const body = await req.json() as { url?: unknown }
+    if (!body.url || typeof body.url !== 'string') throw new ValidationError('Missing url field')
+    await ImagenesService.eliminarImagen(body.url)
+    return apiSuccess(null, 204)
+  })
+}

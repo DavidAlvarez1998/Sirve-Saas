@@ -91,7 +91,7 @@ export default function AdminMesas() {
         </div>
         <button
           onClick={openNew}
-          className="flex items-center gap-2 bg-sky-500 hover:bg-sky-600 text-white px-4 py-2.5 rounded-2xl text-sm font-semibold shadow transition"
+          className="flex items-center gap-2 bg-primary hover:bg-primary-hover text-primary-foreground px-4 py-2.5 rounded-2xl text-sm font-semibold shadow transition"
         >
           <Plus size={16} /> Nueva
         </button>
@@ -113,8 +113,8 @@ export default function AdminMesas() {
               key={m.id}
               className="bg-slate-100 dark:bg-slate-800 rounded-3xl shadow-sm border border-slate-200 dark:border-slate-700 p-4 flex flex-col items-center gap-2"
             >
-              <div className="w-12 h-12 rounded-2xl bg-sky-500/20 flex items-center justify-center">
-                <TableProperties size={22} className="text-sky-400" />
+              <div className="w-12 h-12 rounded-2xl bg-primary/20 flex items-center justify-center">
+                <TableProperties size={22} className="text-primary" />
               </div>
               <p className="font-extrabold text-slate-900 dark:text-white text-sm">
                 Mesa {m.numero}
@@ -150,7 +150,7 @@ export default function AdminMesas() {
               Número de mesa *
             </label>
             <input
-              className="mt-1 w-full bg-slate-200 dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-xl px-3 py-2.5 text-sm text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-sky-400"
+              className="mt-1 w-full bg-slate-200 dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-xl px-3 py-2.5 text-sm text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-ring"
               placeholder="Ej. 1, A1, VIP-1..."
               value={form.numero}
               onChange={e => setForm({ numero: e.target.value })}
@@ -159,7 +159,7 @@ export default function AdminMesas() {
           <button
             onClick={handleSave}
             disabled={saving}
-            className="w-full bg-sky-500 hover:bg-sky-600 disabled:opacity-50 text-white py-3 rounded-2xl font-semibold text-sm transition"
+            className="w-full bg-primary hover:bg-primary-hover disabled:opacity-50 text-primary-foreground py-3 rounded-2xl font-semibold text-sm transition"
           >
             {saving ? 'Guardando...' : editId !== null ? 'Guardar cambios' : 'Crear mesa'}
           </button>

@@ -1,14 +1,14 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { TableProperties, ClipboardList, LayoutDashboard } from 'lucide-react'
+import { PlusCircle, ClipboardList, LayoutDashboard } from 'lucide-react'
 import Link from 'next/link'
 import AppLayout from '@/components/layouts/AppLayout'
 import { MeseroProvider } from '@/context/MeseroContext'
 import { useAuth } from '@/context/AuthContext'
 
 const navItems = [
-  { href: '/mesero', icon: <TableProperties size={18} />, label: 'Mesas', exact: true },
+  { href: '/mesero', icon: <PlusCircle size={18} />, label: 'Nueva', exact: true },
   { href: '/mesero/ordenes', icon: <ClipboardList size={18} />, label: 'Órdenes' },
 ]
 

@@ -8,3 +8,7 @@ export const uploadImagen = async (file: File): Promise<string> => {
   })
   return res.data.url
 }
+
+export const deleteImagen = async (url: string): Promise<void> => {
+  await api.delete('/imagenes', { data: { url } })
+}

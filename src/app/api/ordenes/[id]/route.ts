@@ -55,6 +55,7 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
     if (isNaN(ordenId)) throw new ValidationError('ID inválido')
 
     await withTenant(tenantSlug, (sql) => OrdenService.deleteOrden(sql, ordenId))
+    broadcastOrden(tenantSlug, { tipo: 'ELIMINADA', ordenId })
     return new NextResponse(null, { status: 204 })
   })
 }

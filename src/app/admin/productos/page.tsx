@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback } from 'react'
 import Image from 'next/image'
 import { Plus, Pencil, Trash2, Package } from 'lucide-react'
 import { getProductos, createProducto, updateProducto, deleteProducto } from '@/lib/api/productos'
-import { uploadImagen } from '@/lib/api/imagenes'
+import { uploadImagen, deleteImagen } from '@/lib/api/imagenes'
 import Modal from '@/components/ui/Modal'
 import ConfirmDialog from '@/components/ui/ConfirmDialog'
 import { toast } from 'sonner'
@@ -40,6 +40,7 @@ export default function AdminProductos() {
   const [editId, setEditId] = useState<number | null>(null)
   const [imgFile, setImgFile] = useState<File | null>(null)
   const [imgUrl, setImgUrl] = useState<string | null>(null)
+  const [prevImgUrl, setPrevImgUrl] = useState<string | null>(null)
   const [modalOpen, setModalOpen] = useState(false)
   const [confirm, setConfirm] = useState<number | null>(null)
   const [saving, setSaving] = useState(false)
@@ -61,6 +62,7 @@ export default function AdminProductos() {
     setEditId(null)
     setImgFile(null)
     setImgUrl(null)
+    setPrevImgUrl(null)
     setModalOpen(true)
   }
 
@@ -74,6 +76,7 @@ export default function AdminProductos() {
     setEditId(p.id)
     setImgFile(null)
     setImgUrl(p.imagenUrl ?? null)
+    setPrevImgUrl(p.imagenUrl ?? null)
     setModalOpen(true)
   }
 
@@ -103,6 +106,7 @@ export default function AdminProductos() {
 
       if (editId !== null) {
         await updateProducto(editId, data)
+        if (prevImgUrl && prevImgUrl !== imagenUrl) deleteImagen(prevImgUrl).catch(() => {})
         toast.success('Producto actualizado')
       } else {
         await createProducto(data)

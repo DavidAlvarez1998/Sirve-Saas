@@ -11,8 +11,8 @@ export async function uploadImage(file: File): Promise<{ url: string }> {
 
   const raw = Buffer.from(await file.arrayBuffer())
   const optimized = await sharp(raw)
-    .resize(800, 800, { fit: 'inside', withoutEnlargement: true })
-    .webp({ quality: 80 })
+    .resize(600, 600, { fit: 'inside', withoutEnlargement: true })
+    .webp({ quality: 78 })
     .toBuffer()
 
   const name = `${crypto.randomUUID()}.webp`
@@ -25,4 +25,13 @@ export async function uploadImage(file: File): Promise<{ url: string }> {
 
   const { data } = supabaseAdmin.storage.from(BUCKET).getPublicUrl(name)
   return { url: data.publicUrl }
+}
+
+export async function deleteImage(url: string): Promise<void> {
+  const prefix = `/storage/v1/object/public/${BUCKET}/`
+  const idx = url.indexOf(prefix)
+  if (idx === -1) return
+  const name = url.slice(idx + prefix.length)
+  const { error } = await supabaseAdmin.storage.from(BUCKET).remove([name])
+  if (error) throw new Error(`Storage delete failed: ${error.message}`)
 }

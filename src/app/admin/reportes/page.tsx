@@ -40,7 +40,7 @@ export default function AdminReportes() {
         { label: 'Total ventas', value: formatCurrency(reporte.totalVentas), icon: TrendingUp, color: 'text-orange-400 bg-orange-500/20' },
         { label: 'Propinas', value: formatCurrency(reporte.totalPropinas), icon: BarChart2, color: 'text-violet-400 bg-violet-500/20' },
         { label: 'Efectivo', value: formatCurrency(reporte.totalEfectivo), icon: Banknote, color: 'text-green-400 bg-green-500/20' },
-        { label: 'Tarjeta', value: formatCurrency(reporte.totalTarjeta), icon: CreditCard, color: 'text-sky-400 bg-sky-500/20' },
+        { label: 'Tarjeta', value: formatCurrency(reporte.totalTarjeta), icon: CreditCard, color: 'text-primary bg-primary/20' },
         { label: 'Transferencia', value: formatCurrency(reporte.totalTransferencia), icon: Smartphone, color: 'text-indigo-400 bg-indigo-500/20' },
         { label: 'Órdenes', value: String(reporte.cantidadOrdenes), icon: ShoppingBag, color: 'text-amber-400 bg-amber-500/20' },
       ]

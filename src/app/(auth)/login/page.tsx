@@ -51,7 +51,7 @@ export default function LoginPage() {
     <div className="min-h-screen flex items-center justify-center bg-background">
       <div className="bg-surface rounded-2xl shadow-md p-8 w-full max-w-sm border border-border">
         <h1 className="text-2xl font-bold text-foreground mb-6 text-center">
-          Sirve
+          Sirva
         </h1>
 
         <form ref={formRef} onSubmit={handleSubmit} className="flex flex-col gap-4">

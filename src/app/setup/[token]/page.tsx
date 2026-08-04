@@ -81,7 +81,7 @@ export default function SetupPage() {
     return (
       <div className="min-h-screen flex items-center justify-center bg-white dark:bg-slate-900">
         <div className="bg-slate-100 dark:bg-slate-800 rounded-2xl shadow-md p-8 w-full max-w-sm text-center">
-          <h1 className="text-2xl font-bold text-slate-900 dark:text-white mb-3">Sirve</h1>
+          <h1 className="text-2xl font-bold text-slate-900 dark:text-white mb-3">Sirva</h1>
           <p className="text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2">{linkError}</p>
         </div>
       </div>
@@ -92,7 +92,7 @@ export default function SetupPage() {
     <div className="min-h-screen flex items-center justify-center bg-white dark:bg-slate-900">
       <div className="bg-slate-100 dark:bg-slate-800 rounded-2xl shadow-md p-8 w-full max-w-sm">
         <h1 className="text-2xl font-bold text-slate-900 dark:text-white mb-1 text-center">
-          Sirve
+          Sirva
         </h1>
         {tenantNombre && (
           <p className="text-sm text-slate-500 dark:text-slate-400 text-center mb-6">
@@ -125,7 +125,7 @@ export default function SetupPage() {
               required
               minLength={8}
               autoComplete="new-password"
-              className="w-full border border-slate-200 dark:border-slate-600 rounded-lg px-3 py-2 text-sm bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full border border-slate-200 dark:border-slate-600 rounded-lg px-3 py-2 text-sm bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-ring"
               placeholder="Mínimo 8 caracteres"
             />
           </div>
@@ -140,7 +140,7 @@ export default function SetupPage() {
               onChange={(e) => setConfirmarPassword(e.target.value)}
               required
               autoComplete="new-password"
-              className="w-full border border-slate-200 dark:border-slate-600 rounded-lg px-3 py-2 text-sm bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full border border-slate-200 dark:border-slate-600 rounded-lg px-3 py-2 text-sm bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-ring"
               placeholder="Repetí la contraseña"
             />
           </div>
@@ -152,7 +152,7 @@ export default function SetupPage() {
           <button
             type="submit"
             disabled={submitting}
-            className="mt-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-lg transition disabled:opacity-50"
+            className="mt-2 bg-primary hover:bg-primary-hover text-primary-foreground font-semibold py-2 px-4 rounded-lg transition disabled:opacity-50"
           >
             {submitting ? 'Creando cuenta...' : 'Crear cuenta'}
           </button>
