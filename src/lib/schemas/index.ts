@@ -93,3 +93,27 @@ export const CompletarSetupSchema = z.object({
 export const UpdateTenantExpirySchema = z.object({
   fechaVencimiento: z.string().datetime().nullable(),
 })
+
+export const RegisterSchema = z.object({
+  orgName:         z.string().trim().min(2).max(100),
+  fullName:        z.string().trim().min(2).max(100),
+  email:           z.string().email().max(255).transform((v) => v.toLowerCase()),
+  password:        z.string().min(8).max(128),
+  confirmPassword: z.string().min(8).max(128),
+  acceptTerms:     z.boolean(),
+})
+  .superRefine((data, ctx) => {
+    if (data.confirmPassword !== data.password) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Las contraseñas no coinciden',
+        path: ['confirmPassword'],
+      })
+    }
+  })
+  .refine((data) => data.acceptTerms === true, {
+    message: 'Debés aceptar los términos para continuar',
+    path: ['acceptTerms'],
+  })
+
+export type RegisterInput = z.infer<typeof RegisterSchema>
