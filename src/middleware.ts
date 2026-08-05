@@ -30,7 +30,7 @@ type SessionCookie = {
   tenantId: string | null
 }
 
-const PUBLIC_PAGE_PATHS = ['/', '/login', '/403', '/setup']
+const PUBLIC_PAGE_PATHS = ['/', '/login', '/register', '/terms', '/privacy', '/403', '/setup']
 
 const ROLE_GATES: Array<{ prefix: string; roles: string[] }> = [
   { prefix: '/admin', roles: ['ADMIN'] },
@@ -92,6 +92,7 @@ async function pageMiddleware(req: NextRequest): Promise<NextResponse> {
 
 const API_PUBLIC_PREFIXES = [
   '/api/auth/login',
+  '/api/auth/register',
   '/api/setup/',
 ]
 

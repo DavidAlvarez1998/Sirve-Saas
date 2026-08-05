@@ -104,7 +104,26 @@ export default function LoginPage() {
           >
             {loading ? 'Ingresando...' : 'Ingresar'}
           </Button>
+
+          <p className="text-xs text-muted-foreground text-center pt-1">
+            Al ingresar, aceptás nuestros{' '}
+            <Link href="/terms" className="underline underline-offset-2 hover:text-foreground">
+              Términos
+            </Link>{' '}
+            y{' '}
+            <Link href="/privacy" className="underline underline-offset-2 hover:text-foreground">
+              Política de Privacidad
+            </Link>
+            .
+          </p>
         </form>
+
+        <p className="text-sm text-muted-foreground text-center mt-4">
+          ¿No tenés cuenta?{' '}
+          <Link href="/register" className="text-foreground underline underline-offset-2 hover:text-foreground/70">
+            Registrate
+          </Link>
+        </p>
       </div>
     </div>
   )
