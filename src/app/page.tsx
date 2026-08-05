@@ -1,14 +1,9 @@
 import Link from 'next/link'
-import { Building2, Users, Zap, LayoutDashboard } from 'lucide-react'
+import { Users, Zap, LayoutDashboard } from 'lucide-react'
 
 // ─── Feature cards data ───────────────────────────────────────────────────────
 
 const FEATURES = [
-  {
-    Icon: Building2,
-    title: 'Multi-restaurante',
-    description: 'Cada restaurante con sus datos aislados. Crecé sin límites.',
-  },
   {
     Icon: Users,
     title: 'Roles y permisos',
