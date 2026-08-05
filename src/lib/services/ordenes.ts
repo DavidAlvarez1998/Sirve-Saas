@@ -119,7 +119,7 @@ interface ItemRow {
   notas: string | null
 }
 
-interface IngredienteRow {
+interface ItemIngredienteRow {
   id: bigint
   item_id: bigint
   ingrediente_id: bigint
@@ -171,7 +171,7 @@ function toItem(row: ItemRow, ingredientes: OrdenItemIngrediente[]): OrdenItem {
   }
 }
 
-function toIngrediente(row: IngredienteRow): OrdenItemIngrediente {
+function toIngrediente(row: ItemIngredienteRow): OrdenItemIngrediente {
   return {
     id: Number(row.id),
     itemId: Number(row.item_id),
@@ -214,7 +214,7 @@ export async function buildOrden(sql: Sql, id: number): Promise<Orden> {
       WHERE oi.orden_id = ${id}
       ORDER BY oi.id
     `,
-    sql<IngredienteRow[]>`
+    sql<ItemIngredienteRow[]>`
       SELECT oii.id, oii.item_id, oii.ingrediente_id, ing.nombre,
              oii.cantidad, oii.precio_unitario
       FROM orden_item_ingredientes oii
@@ -335,7 +335,7 @@ export async function getOrdenes(sql: Sql): Promise<Orden[]> {
     ORDER BY oi.orden_id, oi.id
   `
 
-  const ingRows = await sql<IngredienteRow[]>`
+  const ingRows = await sql<ItemIngredienteRow[]>`
     SELECT oii.id, oii.item_id, oii.ingrediente_id, ing.nombre,
            oii.cantidad, oii.precio_unitario
     FROM orden_item_ingredientes oii
@@ -419,7 +419,7 @@ export async function getHistorial(
     ORDER BY oi.orden_id, oi.id
   `
 
-  const ingRows = await sql<IngredienteRow[]>`
+  const ingRows = await sql<ItemIngredienteRow[]>`
     SELECT oii.id, oii.item_id, oii.ingrediente_id, ing.nombre,
            oii.cantidad, oii.precio_unitario
     FROM orden_item_ingredientes oii
@@ -529,6 +529,41 @@ export async function updateEstado(sql: Sql, id: number, nuevoEstado: string): P
   return buildOrden(sql, id)
 }
 
+// ─── Catalog row types (batch-fetch helpers) ──────────────────────────────────
+// Distinct from ItemIngredienteRow (which is the orden_item_ingredientes shape)
+
+interface ProductoRow {
+  id: bigint
+  precio: string
+}
+
+interface CatalogIngredienteRow {
+  id: bigint
+  precio: string
+}
+
+async function fetchCatalog(
+  sql: Sql,
+  productoIds: number[],
+  ingredienteIds: number[]
+): Promise<{
+  prodMap: Map<number, ProductoRow>
+  ingMap: Map<number, CatalogIngredienteRow>
+}> {
+  const prodQuery =
+    productoIds.length > 0
+      ? sql<ProductoRow[]>`SELECT id, precio FROM productos WHERE id = ANY(${sql.array(productoIds, 20)})`
+      : Promise.resolve([] as ProductoRow[])
+  const ingQuery =
+    ingredienteIds.length > 0
+      ? sql<CatalogIngredienteRow[]>`SELECT id, precio FROM ingredientes WHERE id = ANY(${sql.array(ingredienteIds, 20)})`
+      : Promise.resolve([] as CatalogIngredienteRow[])
+  const [prodRows, ingRows] = await Promise.all([prodQuery, ingQuery])
+  const prodMap = new Map<number, ProductoRow>(prodRows.map((r) => [Number(r.id), r]))
+  const ingMap = new Map<number, CatalogIngredienteRow>(ingRows.map((r) => [Number(r.id), r]))
+  return { prodMap, ingMap }
+}
+
 export async function addItem(sql: Sql, ordenId: number, data: AddItemData): Promise<Orden> {
   await sql`BEGIN`
   try {
@@ -540,29 +575,26 @@ export async function addItem(sql: Sql, ordenId: number, data: AddItemData): Pro
       throw new ConflictError('No se puede modificar una orden pagada o cancelada')
     }
 
-    const prodRows = await sql<{ id: bigint; precio: string }[]>`
-      SELECT id, precio FROM productos WHERE id = ${data.productoId} LIMIT 1
-    `
-    if (!prodRows[0]) throw new NotFoundError('Producto no encontrado')
+    const ingredienteIds = (data.ingredientes ?? []).map((i) => i.ingredienteId)
+    const { prodMap, ingMap } = await fetchCatalog(sql, [data.productoId], ingredienteIds)
+
+    const prod = prodMap.get(data.productoId)
+    if (!prod) throw new NotFoundError('Producto no encontrado')
 
     const [itemRow] = await sql<{ id: bigint }[]>`
       INSERT INTO orden_items (orden_id, producto_id, cantidad, precio_unitario, notas)
-      VALUES (${ordenId}, ${data.productoId}, ${data.cantidad}, ${prodRows[0].precio}, ${data.notas ?? null})
+      VALUES (${ordenId}, ${data.productoId}, ${data.cantidad}, ${prod.precio}, ${data.notas ?? null})
       RETURNING id
     `
 
-    if (data.ingredientes && data.ingredientes.length > 0) {
-      for (const ing of data.ingredientes) {
-        const ingRows = await sql<{ id: bigint; precio: string }[]>`
-          SELECT id, precio FROM ingredientes WHERE id = ${ing.ingredienteId} LIMIT 1
-        `
-        if (!ingRows[0]) throw new NotFoundError(`Ingrediente ${ing.ingredienteId} no encontrado`)
+    for (const ing of data.ingredientes ?? []) {
+      const ingCatalog = ingMap.get(ing.ingredienteId)
+      if (!ingCatalog) throw new NotFoundError(`Ingrediente ${ing.ingredienteId} no encontrado`)
 
-        await sql`
-          INSERT INTO orden_item_ingredientes (item_id, ingrediente_id, cantidad, precio_unitario)
-          VALUES (${Number(itemRow.id)}, ${ing.ingredienteId}, ${ing.cantidad}, ${ingRows[0].precio})
-        `
-      }
+      await sql`
+        INSERT INTO orden_item_ingredientes (item_id, ingrediente_id, cantidad, precio_unitario)
+        VALUES (${Number(itemRow.id)}, ${ing.ingredienteId}, ${ing.cantidad}, ${ingCatalog.precio})
+      `
     }
 
     await recalcularTotal(sql, ordenId)
@@ -587,68 +619,51 @@ export async function addItems(sql: Sql, ordenId: number, items: AddItemData[]):
       throw new ConflictError('No se puede modificar una orden pagada o cancelada')
     }
 
-    // 2. Batch validate productos
-    const productoIds = items.map((it) => it.productoId)
-    const prodRows = await sql<{ id: bigint; precio: string }[]>`
-      SELECT id, precio FROM productos WHERE id = ANY(${sql.array(productoIds)})
-    `
-    const prodMap = new Map(prodRows.map((r) => [Number(r.id), r.precio]))
+    // 2. Batch-fetch catalog (productos + ingredientes) via fetchCatalog
+    const productoIds = [...new Set(items.map((it) => it.productoId))]
+    const ingredienteIds = [...new Set(items.flatMap((it) => (it.ingredientes ?? []).map((ing) => ing.ingredienteId)))]
+    const { prodMap, ingMap } = await fetchCatalog(sql, productoIds, ingredienteIds)
+
+    // 3. Validate all productos (1-based index)
     for (let i = 0; i < items.length; i++) {
       if (!prodMap.has(items[i].productoId)) {
         throw new NotFoundError(`Producto no encontrado (item #${i + 1})`)
       }
     }
 
-    // 3. Batch validate ingredientes
-    const allIngIds = items.flatMap((it) => (it.ingredientes ?? []).map((ing) => ing.ingredienteId))
-    const ingMap = new Map<number, string>()
-    if (allIngIds.length > 0) {
-      const ingRows = await sql<{ id: bigint; precio: string }[]>`
-        SELECT id, precio FROM ingredientes WHERE id = ANY(${sql.array(allIngIds)})
-      `
-      for (const r of ingRows) ingMap.set(Number(r.id), r.precio)
-      for (let i = 0; i < items.length; i++) {
-        for (const ing of items[i].ingredientes ?? []) {
-          if (!ingMap.has(ing.ingredienteId)) {
-            throw new NotFoundError(`Ingrediente ${ing.ingredienteId} no encontrado (item #${i + 1})`)
-          }
+    // 4. Validate all ingredientes (1-based index)
+    for (let i = 0; i < items.length; i++) {
+      for (const ing of items[i].ingredientes ?? []) {
+        if (!ingMap.has(ing.ingredienteId)) {
+          throw new NotFoundError(`Ingrediente ${ing.ingredienteId} no encontrado (item #${i + 1})`)
         }
       }
     }
 
-    // 4. Batch INSERT orden_items
-    const itemInsertRows = items.map((it) => ({
-      orden_id: ordenId,
-      producto_id: it.productoId,
-      cantidad: it.cantidad,
-      precio_unitario: prodMap.get(it.productoId)!,
-      notas: it.notas ?? null,
-    }))
-    /* eslint-disable @typescript-eslint/no-explicit-any */
-    const itemHelper = sql(itemInsertRows, 'orden_id', 'producto_id', 'cantidad', 'precio_unitario', 'notas') as any
-    const insertedItems = await sql<{ id: bigint }[]>`
-      INSERT INTO orden_items ${itemHelper}
-      RETURNING id
-    `
-
-    // 5. Batch INSERT orden_item_ingredientes (skip if none)
-    const ingInsertRows = items.flatMap((it, idx) =>
-      (it.ingredientes ?? []).map((ing) => ({
-        item_id: Number(insertedItems[idx].id),
-        ingrediente_id: ing.ingredienteId,
-        cantidad: ing.cantidad,
-        precio_unitario: ingMap.get(ing.ingredienteId)!,
-      }))
-    )
-    if (ingInsertRows.length > 0) {
-      const ingHelper = sql(ingInsertRows, 'item_id', 'ingrediente_id', 'cantidad', 'precio_unitario') as any
-      await sql`
-        INSERT INTO orden_item_ingredientes ${ingHelper}
+    // 5. Sequential INSERT orden_items (RETURNING id needed as FK for ingredientes)
+    const insertedItemIds: number[] = []
+    for (const it of items) {
+      const prod = prodMap.get(it.productoId)!
+      const [row] = await sql<{ id: bigint }[]>`
+        INSERT INTO orden_items (orden_id, producto_id, cantidad, precio_unitario, notas)
+        VALUES (${ordenId}, ${it.productoId}, ${it.cantidad}, ${prod.precio}, ${it.notas ?? null})
+        RETURNING id
       `
+      insertedItemIds.push(Number(row.id))
     }
-    /* eslint-enable @typescript-eslint/no-explicit-any */
 
-    // 6. Recalculate + build
+    // 6. Sequential INSERT orden_item_ingredientes
+    for (let i = 0; i < items.length; i++) {
+      for (const ing of items[i].ingredientes ?? []) {
+        const ingCatalog = ingMap.get(ing.ingredienteId)!
+        await sql`
+          INSERT INTO orden_item_ingredientes (item_id, ingrediente_id, cantidad, precio_unitario)
+          VALUES (${insertedItemIds[i]}, ${ing.ingredienteId}, ${ing.cantidad}, ${ingCatalog.precio})
+        `
+      }
+    }
+
+    // 7. Recalculate + build
     await recalcularTotal(sql, ordenId)
     const result = await buildOrden(sql, ordenId)
     await sql`COMMIT`
@@ -680,10 +695,17 @@ export async function updateItem(
     `
     if (!itemRows[0]) throw new NotFoundError('Item no encontrado en esta orden')
 
-    const prodRows = await sql<{ id: bigint; precio: string }[]>`
-      SELECT id, precio FROM productos WHERE id = ${data.productoId} LIMIT 1
-    `
-    if (!prodRows[0]) throw new NotFoundError('Producto no encontrado')
+    const ingredienteIds = (data.ingredientes ?? []).map((i) => i.ingredienteId)
+    const { prodMap, ingMap } = await fetchCatalog(sql, [data.productoId], ingredienteIds)
+
+    const prod = prodMap.get(data.productoId)
+    if (!prod) throw new NotFoundError('Producto no encontrado')
+
+    for (const ing of data.ingredientes ?? []) {
+      if (!ingMap.has(ing.ingredienteId)) {
+        throw new NotFoundError(`Ingrediente ${ing.ingredienteId} no encontrado`)
+      }
+    }
 
     await sql`DELETE FROM orden_item_ingredientes WHERE item_id = ${itemId}`
 
@@ -691,23 +713,17 @@ export async function updateItem(
       UPDATE orden_items
       SET producto_id = ${data.productoId},
           cantidad = ${data.cantidad},
-          precio_unitario = ${prodRows[0].precio},
+          precio_unitario = ${prod.precio},
           notas = ${data.notas ?? null}
       WHERE id = ${itemId}
     `
 
-    if (data.ingredientes && data.ingredientes.length > 0) {
-      for (const ing of data.ingredientes) {
-        const ingRows = await sql<{ id: bigint; precio: string }[]>`
-          SELECT id, precio FROM ingredientes WHERE id = ${ing.ingredienteId} LIMIT 1
-        `
-        if (!ingRows[0]) throw new NotFoundError(`Ingrediente ${ing.ingredienteId} no encontrado`)
-
-        await sql`
-          INSERT INTO orden_item_ingredientes (item_id, ingrediente_id, cantidad, precio_unitario)
-          VALUES (${itemId}, ${ing.ingredienteId}, ${ing.cantidad}, ${ingRows[0].precio})
-        `
-      }
+    for (const ing of data.ingredientes ?? []) {
+      const ingCatalog = ingMap.get(ing.ingredienteId)!
+      await sql`
+        INSERT INTO orden_item_ingredientes (item_id, ingrediente_id, cantidad, precio_unitario)
+        VALUES (${itemId}, ${ing.ingredienteId}, ${ing.cantidad}, ${ingCatalog.precio})
+      `
     }
 
     await recalcularTotal(sql, ordenId)
